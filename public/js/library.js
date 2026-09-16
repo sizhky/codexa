@@ -2179,6 +2179,17 @@ async function handleFiles(fileList) {
       const book = await r.json();
       uploaded++;
       modal.setRow(i, 'ok', book.id);
+      // Uploading while a shelf is open should land the book on that shelf — /api/books has
+      // no concept of "current shelf" (it always adds to the plain, unfiled library), so that
+      // membership has to be added explicitly here, same as the "add to shelf" checklist does
+      // (see the toAdd loop above) — otherwise the book only ever shows up in All Books.
+      if (typeof currentShelfId === 'number') {
+        try {
+          await apiFetch(`/shelves/${currentShelfId}/books`, { method: 'POST', body: JSON.stringify({ bookId: book.id }) });
+        } catch (shelfErr) {
+          console.error('[library] failed to add uploaded book to shelf:', shelfErr.message);
+        }
+      }
       // PDFs get no cover at import time (server-side rendering was tried and rejected — see
       // pdf-cover.js's header comment). Render + upload it here, awaited, so the loadBooks()
       // call right after this loop already shows it — not fire-and-forget, since a PDF's cover
@@ -2202,6 +2213,10 @@ async function handleFiles(fileList) {
   modal.finish(uploaded, failed);
   setButtonLoading(uploadBtn, false);
   fileInput.value = '';
+  // Refresh the shelf-membership set before loadBooks()'s own applyFilter() runs, so a book
+  // just added to the current shelf (above) shows up immediately instead of only after the
+  // next shelf switch.
+  if (typeof currentShelfId === 'number') await refreshShelfFilter(false);
   await loadBooks();
   await reloadShelves();
 }

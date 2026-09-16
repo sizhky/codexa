@@ -4,7 +4,7 @@
 // renderer) rather than reusing library.js's book-card component, which isn't
 // parameterized for a different data source / action set.
 import { apiFetch } from './api.js';
-import { toast, setButtonLoading, initSortMenuFor, resyncSortMenu, showBlockingOverlay } from './ui.js';
+import { toast, setButtonLoading, initSortMenuFor, resyncSortMenu, showBlockingOverlay, scrollCatalogToTop } from './ui.js';
 import { t } from './i18n.js';
 import { reloadLibrary, openInfoModal, sanitizeHtml } from './library.js';
 import { reloadShelves } from './sidebar.js';
@@ -314,6 +314,7 @@ async function loadBooks(page) {
     currentTotal = data.total || 0;
     renderGrid(data.items || []);
     renderPagination();
+    scrollCatalogToTop();
   } catch (err) {
     toast.error(t('common.err_prefix') + err.message);
   } finally {

@@ -1,5 +1,5 @@
 import { apiFetch } from './api.js';
-import { toast, setButtonLoading, showBlockingOverlay } from './ui.js';
+import { toast, setButtonLoading, showBlockingOverlay, scrollCatalogToTop } from './ui.js';
 import { t, applyTranslations } from './i18n.js';
 import { reloadShelves } from './sidebar.js';
 import { reloadLibrary, openInfoModal } from './library.js';
@@ -239,6 +239,7 @@ async function gotoPage(url) {
     currentFeed  = feed;
     renderFeed(feed);
     renderPagination();
+    scrollCatalogToTop();
   } catch (err) {
     toast.error(t('opds.err_browse', { msg: err.message }));
   } finally {

@@ -205,6 +205,22 @@ export function setButtonLoading(btn, loading, originalLabel) {
   }
 }
 
+// ── Scroll-to-top after a page change (catalog browsers) ──────────────────────
+// OPDS/BookOrbit's Next/Prev pagination swaps the grid's content in place, but which
+// element actually owns the scrollbar varies by layout/browser: desktop scrolls
+// .app-body, mobile scrolls either .app-body (via its .opds-active/.bookorbit-active
+// modifier) or the panel itself depending on content height, and some Android WebViews
+// scroll the document/scrollingElement instead of either. Rather than pick one and be
+// wrong on some device (the original bug — it "just worked" only where the browser
+// happened to already be scrolled to a spot inside the new content), reset every
+// plausible scroll owner; scrolling one that isn't actually scrolled is a harmless no-op.
+export function scrollCatalogToTop() {
+  document.scrollingElement?.scrollTo(0, 0);
+  document.querySelector('.app-body')?.scrollTo(0, 0);
+  document.getElementById('panel-opds')?.scrollTo(0, 0);
+  document.getElementById('panel-bookorbit')?.scrollTo(0, 0);
+}
+
 function escHtml(str) {
   return String(str)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;')
