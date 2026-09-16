@@ -314,12 +314,17 @@ async function loadBooks(page) {
     currentTotal = data.total || 0;
     renderGrid(data.items || []);
     renderPagination();
-    scrollCatalogToTop();
   } catch (err) {
     toast.error(t('common.err_prefix') + err.message);
   } finally {
     setLoading(false);
   }
+  // Must run after setLoading(false) un-hides gridEl (setLoading(true) above sets
+  // gridEl.hidden, i.e. display:none) — scrollTo() on a display:none element is a
+  // no-op in every browser, so calling this any earlier silently did nothing and the
+  // grid kept whatever scroll position it had before the page change. OPDS's own
+  // setLoading() never hides its grid, which is why this bug was BookOrbit-only.
+  scrollCatalogToTop();
 }
 
 function renderGrid(items) {

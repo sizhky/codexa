@@ -207,18 +207,22 @@ export function setButtonLoading(btn, loading, originalLabel) {
 
 // ── Scroll-to-top after a page change (catalog browsers) ──────────────────────
 // OPDS/BookOrbit's Next/Prev pagination swaps the grid's content in place, but which
-// element actually owns the scrollbar varies by layout/browser: desktop scrolls
-// .app-body, mobile scrolls either .app-body (via its .opds-active/.bookorbit-active
-// modifier) or the panel itself depending on content height, and some Android WebViews
-// scroll the document/scrollingElement instead of either. Rather than pick one and be
-// wrong on some device (the original bug — it "just worked" only where the browser
-// happened to already be scrolled to a spot inside the new content), reset every
-// plausible scroll owner; scrolling one that isn't actually scrolled is a harmless no-op.
+// element actually owns the scrollbar varies by layout/breakpoint: on desktop
+// .opds-layout/.opds-catalog are overflow:hidden (main.css ~2652/2698) and the real
+// scrollbar lives on the inner #catalog-grid/#bookorbit-grid box itself — .app-body
+// never overflows there at all, so resetting it alone was a no-op on desktop (the
+// reported case). On mobile those inner boxes switch to overflow:visible and the
+// scroll bubbles up to .app-body/the panel instead. Some Android WebViews scroll the
+// document/scrollingElement regardless of either. Rather than pick one and be wrong
+// somewhere, reset every plausible scroll owner; resetting one that isn't actually
+// scrolled is a harmless no-op.
 export function scrollCatalogToTop() {
   document.scrollingElement?.scrollTo(0, 0);
   document.querySelector('.app-body')?.scrollTo(0, 0);
   document.getElementById('panel-opds')?.scrollTo(0, 0);
   document.getElementById('panel-bookorbit')?.scrollTo(0, 0);
+  document.getElementById('catalog-grid')?.scrollTo(0, 0);
+  document.getElementById('bookorbit-grid')?.scrollTo(0, 0);
 }
 
 function escHtml(str) {
