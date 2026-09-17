@@ -38,6 +38,7 @@ router.get('/', (req, res) => {
     kosync_username:         row.kosync_username,
     has_kosync_password:     row.kosync_password_enc !== '',
     kosync_internal_enabled: row.kosync_internal_enabled === 1,
+    kosync_external_enabled: row.kosync_external_enabled !== 0,
     bookorbit_sync_enabled:  row.bookorbit_sync_enabled === 1,
     bookorbit_url:           row.bookorbit_url || '',
     bookorbit_account_username: row.bookorbit_account_username || '',
@@ -54,6 +55,7 @@ router.put('/', (req, res) => {
   if (!row) return res.status(404).json({ error: 'Settings not found' });
 
   const { opds_servers, kosync_url, kosync_username, kosync_password, kosync_internal_enabled,
+          kosync_external_enabled,
           bookorbit_sync_enabled, bookorbit_url, bookorbit_account_username, bookorbit_account_password,
           reader_prefs } = req.body;
 
@@ -65,6 +67,7 @@ router.put('/', (req, res) => {
     // Empty string means "clear password"; undefined means "keep existing"
     kosync_password_enc:     kosync_password !== undefined ? String(kosync_password)         : row.kosync_password_enc,
     kosync_internal_enabled: kosync_internal_enabled !== undefined ? (kosync_internal_enabled ? 1 : 0) : row.kosync_internal_enabled,
+    kosync_external_enabled: kosync_external_enabled !== undefined ? (kosync_external_enabled ? 1 : 0) : row.kosync_external_enabled,
     bookorbit_sync_enabled:  bookorbit_sync_enabled  !== undefined ? (bookorbit_sync_enabled  ? 1 : 0) : row.bookorbit_sync_enabled,
     bookorbit_url:                  bookorbit_url              !== undefined ? String(bookorbit_url)              : row.bookorbit_url,
     bookorbit_account_username:     bookorbit_account_username !== undefined ? String(bookorbit_account_username) : row.bookorbit_account_username,
@@ -79,6 +82,7 @@ router.put('/', (req, res) => {
            kosync_username         = ?,
            kosync_password_enc     = ?,
            kosync_internal_enabled = ?,
+           kosync_external_enabled = ?,
            bookorbit_sync_enabled  = ?,
            bookorbit_url                  = ?,
            bookorbit_account_username     = ?,
@@ -91,6 +95,7 @@ router.put('/', (req, res) => {
     next.kosync_username,
     next.kosync_password_enc,
     next.kosync_internal_enabled,
+    next.kosync_external_enabled,
     next.bookorbit_sync_enabled,
     next.bookorbit_url,
     next.bookorbit_account_username,

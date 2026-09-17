@@ -164,8 +164,14 @@ proxyRouter.use(authenticateToken);
 function getExternalSettings(userId) {
   const db = getDb();
   return db.prepare(
-    'SELECT kosync_url, kosync_username, kosync_password_enc, kosync_internal_enabled FROM user_settings WHERE user_id = ?'
+    'SELECT kosync_url, kosync_username, kosync_password_enc, kosync_internal_enabled, kosync_external_enabled FROM user_settings WHERE user_id = ?'
   ).get(userId);
+}
+
+// Column defaults to 1 (see db.js migration) so existing rows read as enabled unless the user
+// has explicitly flipped the Settings toggle off — treat anything but a literal 0 as enabled.
+function isExternalEnabled(s) {
+  return s?.kosync_external_enabled !== 0;
 }
 
 function isInternalEnabled(userId) {
@@ -227,6 +233,10 @@ proxyRouter.get('/remote/:document', async (req, res) => {
     console.log('[kosync] remote GET: skipped — no kosync_url configured');
     return res.json(null);
   }
+  if (!isExternalEnabled(s)) {
+    console.log('[kosync] remote GET: skipped — external sync disabled in settings');
+    return res.json(null);
+  }
 
   const url = `${s.kosync_url.replace(/\/$/, '')}/syncs/progress/${encodeURIComponent(req.params.document)}`;
   console.log('[kosync] remote GET:', url);
@@ -254,6 +264,10 @@ proxyRouter.put('/remote/:document', async (req, res) => {
   const s = getExternalSettings(req.user.id);
   if (!s?.kosync_url) {
     console.log('[kosync] remote PUT: skipped — no kosync_url configured');
+    return res.json({ skipped: true });
+  }
+  if (!isExternalEnabled(s)) {
+    console.log('[kosync] remote PUT: skipped — external sync disabled in settings');
     return res.json({ skipped: true });
   }
 

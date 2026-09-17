@@ -329,19 +329,31 @@ async function resolveBooks(db, userId, ctx, opts) {
     : db.prepare("SELECT id, file_hash_md5 FROM books WHERE user_id = ?").all(userId);
 
   const resolved = [];
-  const needHash = []; // { bookId, hash }
+  const needHash = []; // { bookId, hash, fallback: {boBookId, boFileId} | null }
   for (const b of candidates) {
     const st = db.prepare('SELECT bo_book_id, bo_file_id FROM bookorbit_sync_state WHERE user_id = ? AND book_id = ?').get(userId, b.id);
-    if (st?.bo_book_id) { resolved.push({ bookId: b.id, boBookId: st.bo_book_id, boFileId: st.bo_file_id || 0 }); continue; }
+    if (st?.bo_book_id && st.bo_file_id) { resolved.push({ bookId: b.id, boBookId: st.bo_book_id, boFileId: st.bo_file_id }); continue; }
+    // A cached bo_book_id with no bo_file_id (e.g. resolved via an OPDS link that had no
+    // fileId param at the time, or a hash-match whose response omitted bookFileId) isn't
+    // good enough for anything keyed by file — progress push/pull, annotations' bookFileId
+    // — so don't treat it as final. Keep it only as a last-resort fallback and try OPDS/
+    // hash-match again below; a book_opds_sources row added or updated *after* that first,
+    // incomplete resolution can carry a real fileId today even though it didn't back then,
+    // and the old code never looked again once bo_book_id was cached at all (confirmed live:
+    // this is exactly why a real BookOrbit progress push never showed up in a pull — see the
+    // "no progress despite a real push" investigation this session).
+    const cachedFallback = st?.bo_book_id ? { boBookId: st.bo_book_id, boFileId: st.bo_file_id || 0 } : null;
     const opds = opdsIdsFor(db, userId, b.id, ctx.origin);
-    if (opds) { saveMapping(db, userId, b.id, opds.boBookId, opds.boFileId); resolved.push({ bookId: b.id, ...opds }); continue; }
-    if (b.file_hash_md5) needHash.push({ bookId: b.id, hash: String(b.file_hash_md5).toLowerCase() });
+    if (opds?.boFileId) { saveMapping(db, userId, b.id, opds.boBookId, opds.boFileId); resolved.push({ bookId: b.id, ...opds }); continue; }
+    const fallback = opds || cachedFallback;
+    if (b.file_hash_md5) { needHash.push({ bookId: b.id, hash: String(b.file_hash_md5).toLowerCase(), fallback }); continue; }
+    if (fallback) resolved.push({ bookId: b.id, ...fallback });
   }
 
   if (needHash.length) {
     const map = await matchCheckHashes(ctx, [...new Set(needHash.map(x => x.hash))]);
     for (const x of needHash) {
-      const m = map.get(x.hash);
+      const m = map.get(x.hash) || x.fallback;
       if (m) { saveMapping(db, userId, x.bookId, m.boBookId, m.boFileId); resolved.push({ bookId: x.bookId, ...m }); }
     }
   }
@@ -879,9 +891,15 @@ async function getProgress(userId, bookId) {
     const db = getDb();
     const resolved = await resolveBooks(db, userId, ctx, { bookId });
     const m = resolved[0];
-    if (!m || !m.boFileId) return null;
+    // These two used to return null completely silently — the only way to tell "genuinely no
+    // BookOrbit progress yet" apart from "this book isn't resolved to a fileId at all" or "the
+    // API call failed" was reading the database directly (needed exactly once, live, to track
+    // down a report of a real device push never showing up in a pull — see resolveBooks' own
+    // comment on the actual bug). A one-line log here means the next report is diagnosable from
+    // the log alone.
+    if (!m || !m.boFileId) { console.warn(`[bookorbit] user ${userId}: progress pull skipped for book ${bookId} — not resolved to a BookOrbit fileId`); return null; }
     const res = await api(userId, ctx, 'GET', `/books/files/${m.boFileId}/progress`);
-    if (!res.ok || !res.data) return null;
+    if (!res.ok || !res.data) { console.warn(`[bookorbit] user ${userId}: progress pull for book ${bookId} (fileId ${m.boFileId}) returned no data (HTTP ${res.status})`); return null; }
     const pct = typeof res.data.percentage === 'number' ? res.data.percentage / 100 : 0;
     const updatedAt = res.data.updatedAt ? Math.floor(new Date(res.data.updatedAt).getTime() / 1000) : 0;
     return {

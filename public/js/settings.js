@@ -31,6 +31,7 @@ export async function initSettings() {
   _initialized = true;
 
 // ── DOM refs ──────────────────────────────────────────────────────────────────
+const kosyncExternalEnabled  = document.getElementById('kosync-external-enabled');
 const kosyncUrl              = document.getElementById('kosync-url');
 const kosyncUsername         = document.getElementById('kosync-username');
 const kosyncPassword         = document.getElementById('kosync-password');
@@ -59,7 +60,8 @@ async function loadSettings() {
     kosyncUsername.value = s.kosync_username  || '';
     // password is never returned; show placeholder when set
     kosyncPassword.placeholder = s.has_kosync_password ? t('settings.kosync_pass_saved') : t('settings.kosync_pass_ph');
-    updateStatusBadge(s.kosync_url ? null : 'not_configured');
+    kosyncExternalEnabled.checked = s.kosync_external_enabled !== false;
+    updateExternalStatusBadge();
     kosyncInternalEnabled.checked = s.kosync_internal_enabled || false;
     updateInternalUrlBox();
     bookorbitUrl.value = s.bookorbit_url || '';
@@ -89,6 +91,14 @@ function updateInternalUrlBox() {
 
 kosyncInternalEnabled.addEventListener('change', updateInternalUrlBox);
 
+// Reflects the enabled toggle immediately (before Save is clicked) so unchecking it doesn't
+// leave a stale "Connection successful" badge showing from an earlier test.
+function updateExternalStatusBadge() {
+  if (!kosyncExternalEnabled.checked) updateStatusBadge('disabled');
+  else updateStatusBadge(kosyncUrl.value.trim() ? null : 'not_configured');
+}
+kosyncExternalEnabled.addEventListener('change', updateExternalStatusBadge);
+
 // ── Status badge ──────────────────────────────────────────────────────────────
 function setStatusBadge(el, reason) {
   el.className = 'kosync-status';
@@ -100,6 +110,9 @@ function setStatusBadge(el, reason) {
   if (reason === 'not_configured') {
     el.classList.add('status-off');
     el.textContent = t('settings.status_not_configured');
+  } else if (reason === 'disabled') {
+    el.classList.add('status-off');
+    el.textContent = t('settings.status_disabled');
   } else if (reason === 'ok') {
     el.classList.add('status-ok');
     el.textContent = t('settings.status_ok');
@@ -160,14 +173,14 @@ btnSaveKosync.addEventListener('click', async () => {
 
   setButtonLoading(btnSaveKosync, true, t('settings.btn_saving'));
   try {
-    const body = { kosync_url: url, kosync_username: username };
+    const body = { kosync_url: url, kosync_username: username, kosync_external_enabled: kosyncExternalEnabled.checked };
     // Only send password if user typed something new
     if (password) body.kosync_password = password;
 
     await apiFetch('/settings', { method: 'PUT', body: JSON.stringify(body) });
     kosyncPassword.value       = '';
     kosyncPassword.placeholder = password ? t('settings.kosync_pass_saved') : kosyncPassword.placeholder;
-    updateStatusBadge(url ? null : 'not_configured');
+    updateExternalStatusBadge();
     toast.success(t('settings.saved'));
   } catch (err) {
     toast.error(t('settings.err_save', { msg: err.message }));
@@ -185,12 +198,13 @@ btnClearKosync.addEventListener('click', () => {
       try {
         await apiFetch('/settings', {
           method: 'PUT',
-          body: JSON.stringify({ kosync_url: '', kosync_username: '', kosync_password: '' }),
+          body: JSON.stringify({ kosync_url: '', kosync_username: '', kosync_password: '', kosync_external_enabled: true }),
         });
         kosyncUrl.value      = '';
         kosyncUsername.value = '';
         kosyncPassword.value       = '';
         kosyncPassword.placeholder = t('settings.kosync_pass_ph');
+        kosyncExternalEnabled.checked = true;
         updateStatusBadge('not_configured');
         toast.success(t('settings.removed'));
       } catch (err) {

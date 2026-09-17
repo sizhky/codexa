@@ -57,6 +57,7 @@ function initDb() {
       kosync_username          TEXT    DEFAULT '',
       kosync_password_enc      TEXT    DEFAULT '',
       kosync_internal_enabled  INTEGER DEFAULT 0,
+      kosync_external_enabled INTEGER DEFAULT 1,
       reader_prefs             TEXT    DEFAULT '{}',
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
@@ -268,6 +269,12 @@ function initDb() {
     // Last time this user made an authenticated request — throttled write, see
     // server/middleware/auth.js. Powers the admin panel's per-user activity display.
     [`ALTER TABLE users           ADD COLUMN last_active_at          INTEGER DEFAULT 0`,        'users.last_active_at'],
+    // Lets a user pause the external KOSync proxy (push+pull against kosync_url) without
+    // clearing the saved URL/credentials — e.g. to isolate BookOrbit-only sync for testing,
+    // then flip it back on later. DEFAULT 1 so existing users with a kosync_url already
+    // configured keep working unchanged after this migration; kosync_url itself being empty
+    // already gates the feature off regardless of this flag.
+    [`ALTER TABLE user_settings   ADD COLUMN kosync_external_enabled INTEGER DEFAULT 1`,        'user_settings.kosync_external_enabled'],
   ];
   for (const [sql, label] of migrations) {
     try {
