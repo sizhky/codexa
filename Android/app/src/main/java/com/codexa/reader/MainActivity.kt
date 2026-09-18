@@ -2,6 +2,7 @@ package com.codexa.reader
 
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.app.DownloadManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ActivityInfo
@@ -12,10 +13,12 @@ import android.net.NetworkRequest
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Environment
 import android.view.KeyEvent
 import android.view.View
 import android.view.WindowManager
 import android.webkit.JavascriptInterface
+import android.webkit.URLUtil
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
@@ -375,6 +378,14 @@ class MainActivity : AppCompatActivity() {
 
         webView.addJavascriptInterface(JsBridge(), "AndroidCodexa")
         injectCustomHeadersScript()
+        // Without this, any navigation the WebView can't render itself — the book-info dialog's
+        // "Download" link (<a href=".../file?download=1&token=..." download>) chief among them —
+        // is silently dropped: Chromium's WebView only hands such navigations off to
+        // DownloadManager when a DownloadListener is actually registered, otherwise the tap
+        // visibly does nothing at all (confirmed live: this is exactly the reported bug).
+        webView.setDownloadListener { url, _, contentDisposition, mimeType, _ ->
+            downloadFile(url, contentDisposition, mimeType)
+        }
         webView.webChromeClient = object : WebChromeClient() {
             override fun onShowFileChooser(
                 webView: WebView?,
@@ -611,6 +622,44 @@ class MainActivity : AppCompatActivity() {
             .edit()
             .putString(PREF_URL, url)
             .apply()
+
+    // -------------------------------------------------------------------------
+    // File downloads (book-info dialog's "Download" link, OPDS/BookOrbit acquisition
+    // links, ...) — handed off to Android's own DownloadManager so it lands in the
+    // system Downloads folder with a normal completion notification, exactly like it
+    // would in a full browser. See setDownloadListener in configureWebView() for why
+    // this is needed at all.
+    // -------------------------------------------------------------------------
+
+    private fun downloadFile(url: String, contentDisposition: String?, mimeType: String?) {
+        try {
+            val filename = URLUtil.guessFileName(url, contentDisposition, mimeType)
+            val request = DownloadManager.Request(Uri.parse(url)).apply {
+                // The download URL already carries its own auth (?token=... — see
+                // library.js's download link), but a zero-trust proxy in front of the whole
+                // server (Cloudflare Access, Pangolin) needs its headers here too, same as
+                // every other request this app makes — DownloadManager runs as a separate
+                // process/request, so it never inherits the WebView's own header injection.
+                for ((k, v) in getCustomHeaders()) addRequestHeader(k, v)
+                // Only set when non-blank — DownloadManager falls back to sniffing the response's
+                // own Content-Type when this is left unset, which is safer than risking whatever
+                // setMimeType(null) actually does (undocumented for that case).
+                if (!mimeType.isNullOrBlank()) setMimeType(mimeType)
+                setTitle(filename)
+                setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, filename)
+                // No WRITE_EXTERNAL_STORAGE permission needed for this on any supported API
+                // level: DownloadManager writes to the public Downloads dir itself, as its own
+                // system process — the long-standing exception to scoped storage/legacy
+                // permission rules that's specific to this API, unlike raw File I/O there.
+            }
+            val dm = getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+            dm.enqueue(request)
+            Toast.makeText(this, getString(R.string.download_started, filename), Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            Toast.makeText(this, getString(R.string.download_failed), Toast.LENGTH_SHORT).show()
+        }
+    }
 
     // -------------------------------------------------------------------------
     // Custom HTTP headers (Settings → Server select → Advanced) — for headless auth
