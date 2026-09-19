@@ -532,7 +532,7 @@ function openCardMenu(book, btn) {
     </button>
     ${offlineItem}
     ${isOfflineMode ? '' : `
-    <a class="bcm-item" href="/api/books/${book.id}/file?download=1&token=${getToken()}" download>
+    <a class="bcm-item bcm-download-file" href="/api/books/${book.id}/file?download=1&token=${getToken()}" download>
       <img src="/images/download.svg" class="nav-icon bcm-icon nav-icon-download" alt="">
       ${t('library.btn_download')}
     </a>
@@ -600,6 +600,14 @@ function openCardMenu(book, btn) {
       downloadingIds.delete(book.id);
       applyFilter();
     }
+  });
+
+  // A plain <a download> click never navigates away and fires no completion event of its own
+  // (the browser's Save-As dialog, or the Android app's DownloadManager, runs independently of
+  // this page from here on) — same as every other item above, close on click rather than trying
+  // to detect an actual finish/cancel that isn't reliably observable from JS either way.
+  popup.querySelector('.bcm-download-file')?.addEventListener('click', () => {
+    closeCardMenu();
   });
 
   popup.querySelector('.bcm-offline-delete')?.addEventListener('click', () => {
