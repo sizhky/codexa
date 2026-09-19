@@ -177,8 +177,27 @@ router.get('/:id/file', (req, res) => {
       const sNum  = sanitize(book.series_number);
       fname += ` (${sName}${sNum ? ` #${sNum}` : ''})`;
     }
-    fname += isPdfFile ? '.pdf' : (isCbzFile ? '.cbz' : '.epub');
-    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(fname)}`);
+    const ext = isPdfFile ? '.pdf' : (isCbzFile ? '.cbz' : '.epub');
+    fname += ext;
+    // RFC 6266 wants both forms: filename* (UTF-8, full title/author) for clients that parse
+    // it, and a plain ASCII filename= fallback for the ones that only understand that older
+    // form — confirmed live that Android's own URLUtil.guessFileName() (used by the Android
+    // app's DownloadManager integration) is one of them: it only recognises "filename=", never
+    // "filename*=", so with filename* alone it fell back to a generic name derived from the
+    // URL path instead ("file.epub").
+    // NFD-normalize first so an accented Latin letter (Žiga, Kovačič, café, ...) decomposes into
+    // its base letter + a separate combining-mark codepoint, which the non-ASCII strip below then
+    // drops on its own — "Ziga Kovacic" rather than a plain strip's "iga Kovai" (confirmed live:
+    // that was this fix's own first draft, mangling exactly the accented names this app's own
+    // users have). Genuinely non-Latin scripts (Cyrillic, CJK) have no such decomposition and
+    // still strip to nothing, same as before.
+    const asciiBase = fname.slice(0, -ext.length).normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .replace(/[^\x20-\x7E]/g, '').replace(/\s+/g, ' ').trim();
+    // Checked against the base name ONLY (before the extension is appended) — checking the full
+    // string let an all-CJK/Cyrillic title's stripped-out remainder ("- .epub") slip past this as
+    // "real content" purely because the extension's own ASCII letters matched.
+    const asciiFname = (/[A-Za-z0-9]/.test(asciiBase) ? asciiBase : 'book') + ext;
+    res.setHeader('Content-Disposition', `attachment; filename="${asciiFname.replace(/"/g, "'")}"; filename*=UTF-8''${encodeURIComponent(fname)}`);
   }
 
   res.sendFile(filePath);
