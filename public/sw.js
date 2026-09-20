@@ -1,7 +1,7 @@
 // Codexa Service Worker
 // Caches app shell for offline use. EPUBs are cached on demand in BOOKS_CACHE.
 
-const CACHE_VERSION = 'br-v20260919001';
+const CACHE_VERSION = 'br-v20260920001';
 const BOOKS_CACHE   = 'codexa-books-v2';
 const APP_SHELL = [
   '/',
@@ -207,9 +207,18 @@ self.addEventListener('fetch', (e) => {
   if (__DEBUG && !_swVersionLogged) { _swVersionLogged = true; console.log('[sw] fetch version:', CACHE_VERSION); }
   const url = new URL(e.request.url);
 
-  // Intercept EPUB file requests — serve from books cache when available
+  // Intercept EPUB file requests — serve from books cache when available. NOT for
+  // ?download=1 (the "Save to device" link in the card menu / book-info dialog) — that
+  // request needs the network's own response regardless of any offline copy: the offline
+  // cache is filled by a bare fetch with no query string (see handleCacheBook below), so
+  // its stored Response never carries the Content-Disposition header the server only adds
+  // for ?download=1, and this same pathname-only match used to catch that request too —
+  // silently swapping in the header-less cached copy, which is why a book downloaded for
+  // offline reading saved to disk as a generic "file.epub" instead of the real name
+  // (confirmed live: reproducible only for a book already cached offline, which is exactly
+  // why it "worked" for one tester and not another testing with a different book).
   const fileMatch = url.pathname.match(/^\/api\/books\/(\d+)\/file$/);
-  if (fileMatch && url.hostname === self.location.hostname) {
+  if (fileMatch && url.hostname === self.location.hostname && url.searchParams.get('download') !== '1') {
     const bookId = parseInt(fileMatch[1], 10);
     e.respondWith(
       caches.open(BOOKS_CACHE).then(c =>
