@@ -179,12 +179,22 @@ router.get('/:id/file', (req, res) => {
     }
     const ext = isPdfFile ? '.pdf' : (isCbzFile ? '.cbz' : '.epub');
     fname += ext;
-    // RFC 6266 wants both forms: filename* (UTF-8, full title/author) for clients that parse
-    // it, and a plain ASCII filename= fallback for the ones that only understand that older
-    // form — confirmed live that Android's own URLUtil.guessFileName() (used by the Android
-    // app's DownloadManager integration) is one of them: it only recognises "filename=", never
-    // "filename*=", so with filename* alone it fell back to a generic name derived from the
-    // URL path instead ("file.epub").
+    // Deliberately sending ONLY the plain ASCII filename= form, not RFC 6266's filename*=
+    // (UTF-8) as well, even though that would preserve exact diacritics/non-Latin text for
+    // clients that understand it. Checked the real AOSP source (frameworks/base's
+    // URLUtil.java) after this still failed live with both forms present: on every Android
+    // version still in real-world use (RFC 6266 parsing is opt-in and gated behind
+    // targetSdkV22+/Android 16, which nothing has yet), URLUtil's legacy parser uses
+    // `attachment;\s*filename\s*=\s*("?)([^"]*)\1\s*$` — note the trailing `\s*$` anchor —
+    // meaning it ONLY matches when filename="..." is the single, sole parameter with nothing
+    // after it. A trailing "; filename*=..." (in either order — the regex also requires
+    // "filename=" immediately after "attachment;", so filename* can't lead either) breaks
+    // the whole match, and it falls back to guessing a name from the URL path instead —
+    // literally "file" for this endpoint, hence "file.epub". Sending filename= alone fixes
+    // this for every real Android version, at the cost of non-ASCII names always being
+    // transliterated (see asciiBase below) rather than exact on clients that would have
+    // understood filename* — a worthwhile trade against a download that visibly worked for
+    // no one on Android before this.
     // NFD-normalize first so an accented Latin letter (Žiga, Kovačič, café, ...) decomposes into
     // its base letter + a separate combining-mark codepoint, which the non-ASCII strip below then
     // drops on its own — "Ziga Kovacic" rather than a plain strip's "iga Kovai" (confirmed live:
@@ -197,7 +207,7 @@ router.get('/:id/file', (req, res) => {
     // string let an all-CJK/Cyrillic title's stripped-out remainder ("- .epub") slip past this as
     // "real content" purely because the extension's own ASCII letters matched.
     const asciiFname = (/[A-Za-z0-9]/.test(asciiBase) ? asciiBase : 'book') + ext;
-    res.setHeader('Content-Disposition', `attachment; filename="${asciiFname.replace(/"/g, "'")}"; filename*=UTF-8''${encodeURIComponent(fname)}`);
+    res.setHeader('Content-Disposition', `attachment; filename="${asciiFname.replace(/"/g, "'")}"`);
   }
 
   res.sendFile(filePath);
