@@ -828,6 +828,7 @@ function applyPreset(id) {
     _cxReader._twoColumn  = cxWantsTwoCol();
     _cxReader._columnGap  = prefs.margin * 2;
     _cxReader._continuous = isContinuousMode();
+    _cxReader.setPdfPaperInversion(prefs.pdfPaperInversion);
   }
   applyComicMargin();
   reapplyStyles();
@@ -6697,7 +6698,7 @@ async function startCXRendition(displayCfi = null) {
     // has no query string of its own otherwise, so it can go stale independently of reader.js
     // (browser/SW cache keys purely on URL) even when reader.js itself is freshly fetched.
     // Bump this alongside reader.html's ?v= whenever cxreader/index.js changes.
-    const { CXReader } = await import('./cxreader/index.js?v=br-v120');
+    const { CXReader } = await import('./cxreader/index.js?v=br-v121');
     _cxReader = new CXReader();
     _cxReader.setPdfPaperInversion(prefs.pdfPaperInversion);
     _cxReader.onBeforePaginate = (iframe) => { _cxApplyIframeInset(iframe); _cxApplyHooks(iframe); };
