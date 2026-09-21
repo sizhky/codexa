@@ -1,6 +1,6 @@
 {
   "name": "codexa",
-  "version": "26062001-dev",
+  "version": "2.6.4",
   "description": "EPUB web reader with OPDS browsing and KOReader sync support",
   "main": "server/index.js",
   "engines": {
@@ -21,7 +21,7 @@
     "build": "node build.mjs"
   },
   "dependencies": {
-    "adm-zip": "^0.6.0",
+    "adm-zip": "^0.6.1",
     "bcrypt": "^6.0.0",
     "better-sqlite3": "^13.0.3",
     "compression": "^1.7.4",
