@@ -69,10 +69,12 @@ function syncStatusBar() {
   const existingToken = localStorage.getItem('br_token');
   if (existingToken) { window.location.href = '/'; return; }
 
+  const invitationToken = new URLSearchParams(window.location.search).get('invite') || '';
+
   // ── Check registration status ─────────────────────────────────────────────
   try {
     const data = await apiFetch('/auth/registration-status');
-    if (!data.enabled) {
+    if (!data.enabled && !invitationToken) {
       const regBtn = document.querySelector('[data-tab="register"]');
       if (regBtn) regBtn.style.display = 'none';
     }
@@ -119,6 +121,12 @@ function syncStatusBar() {
       document.getElementById(`tab-${btn.dataset.tab}`).classList.add('active');
     });
   });
+
+  if (invitationToken) {
+    document.querySelector('[data-tab="register"]')?.click();
+    document.getElementById('reg-invitation-row').hidden = false;
+    document.getElementById('reg-invitation').value = invitationToken;
+  }
 
   function showAlert(id, message, type = 'error') {
     const el = document.getElementById(id);
@@ -216,9 +224,10 @@ function syncStatusBar() {
     try {
       const name  = document.getElementById('reg-name').value.trim();
       const email = document.getElementById('reg-email').value.trim();
+      const invitationToken = document.getElementById('reg-invitation').value;
       const data = await apiFetch('/auth/register', {
         method: 'POST',
-        body: JSON.stringify({ name, username, password, email }),
+        body: JSON.stringify({ name, username, password, email, invitationToken }),
       });
       setToken(data.token);
       localStorage.setItem('br_user', JSON.stringify(data.user));
