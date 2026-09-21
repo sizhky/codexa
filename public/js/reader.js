@@ -291,6 +291,7 @@ const DEFAULT_PREFS = {
   autoHideHeader: true,
   keepScreenOn:   true,
   eink:           false,        // strip all colors for e-ink displays
+  pdfPaperInversion: false,     // remap only pure black/white pixels in rendered PDF pages
   paraIndent:     true,         // paragraph text-indent (first line)
   paraIndentSize: 10,           // indent size when paraIndent=true (em × 10, so 10 = 1.0em)
   paraSpacing:    0,            // extra bottom margin between paragraphs (em × 10, so 0–30)
@@ -4681,6 +4682,7 @@ function syncSettingsUi() {
   document.getElementById('autohide-header-toggle').checked  = prefs.autoHideHeader;
   document.getElementById('keep-screen-on-toggle').checked   = prefs.keepScreenOn;
   document.getElementById('eink-toggle').checked             = prefs.eink;
+  document.getElementById('pdf-paper-inversion-toggle').checked = prefs.pdfPaperInversion;
   const openCheckEl = document.getElementById('skip-open-progress-toggle');
   if (openCheckEl) openCheckEl.checked = prefs.skipOpenProgressCheck;
   const saveOnCloseEl = document.getElementById('skip-save-on-close-toggle');
@@ -5395,6 +5397,12 @@ function initSettingsUi() {
   document.getElementById('eink-toggle').addEventListener('change', (e) => {
     prefs.eink = e.target.checked;
     applyUiTheme(); reapplyStyles(); syncSettingsUi(); persistPrefs();
+  });
+
+  document.getElementById('pdf-paper-inversion-toggle').addEventListener('change', (e) => {
+    prefs.pdfPaperInversion = e.target.checked;
+    _cxReader?.setPdfPaperInversion(prefs.pdfPaperInversion);
+    persistPrefs();
   });
 
   // Paragraph options
@@ -6691,6 +6699,7 @@ async function startCXRendition(displayCfi = null) {
     // Bump this alongside reader.html's ?v= whenever cxreader/index.js changes.
     const { CXReader } = await import('./cxreader/index.js?v=br-v120');
     _cxReader = new CXReader();
+    _cxReader.setPdfPaperInversion(prefs.pdfPaperInversion);
     _cxReader.onBeforePaginate = (iframe) => { _cxApplyIframeInset(iframe); _cxApplyHooks(iframe); };
 
     await _cxReader.open(_epubArrayBuffer, currentBook?.title);
