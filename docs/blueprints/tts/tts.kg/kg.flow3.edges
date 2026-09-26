@@ -1,0 +1,46 @@
+g1: headset -> media-session invokes
+	role=call
+	message=async
+	note=1 · press play/pause
+	description=The headset's single play/pause button sends a media-button event; Android delivers it to whichever app's `MediaSession` is currently active (7.1).
+	code=Platform event; no Codexa source.
+g2: media-session -> android-bridge invokes
+	role=call
+	message=async
+	pair=p-media-key
+	note=2 · onPause() → sendTtsMedia("pause")
+	description=The session's callback (7.1) reports the action back to the WebView page.
+	code=[`onPause` calls `sendTtsMedia`](../../../../Android/app/src/main/java/com/codexa/reader/MainActivity.kt){show=lines lines=307:311}
+g3: android-bridge -> tts-controller invokes
+	role=call
+	message=async
+	pair=p-media-key
+	note=3 · __codexaTtsMedia('pause')
+	description=`sendTtsMedia` (7.4) runs a small script through `evaluateJavascript`, with no return value expected.
+	code=[`sendTtsMedia`](../../../../Android/app/src/main/java/com/codexa/reader/MainActivity.kt){show=lines lines=378:381}
+g4: tts-controller -> tts-controller checks
+	role=standing
+	note=4 · route to pause()/start(cursor)
+	description=`window.__codexaTtsMedia` (7.5) maps `'play'`/`'pause'`/`'stop'`/`'next'`/`'prev'` to `start(cursor)`/`pause()`/`stop()`/`nextSentence()`/`prevSentence()` (4.1, 4.6) — the same methods the bar's own buttons (5.12) call.
+	code=[`window.__codexaTtsMedia`](../../../../public/js/tts.js){show=symbol symbol=createTts kind=Function focus="match[window.__codexaTtsMedia = (action) => {]" context=6}
+g5: tts-controller -> reader-ui invokes
+	role=call
+	message=async
+	fragment=opt:UI reflects the new state
+	operand=[onState wired, 5.4]
+	note=5 · emit() → onState({active, playing})
+	description=`pause()`/`start()` (4.1) call `emit()` (4.5), which updates the bar's `open`/`playing` classes (5.10) so the on-screen controls agree with what the headset just did.
+	code=[`emit` calls `opts.onState`](../../../../public/js/tts.js){show=symbol symbol=createTts kind=Function focus="match[const emit = () => { engine?.session?.(active, playing); opts.onState?.({ active, playing]" context=1}
+g6: tts-controller -> media-session invokes
+	role=call
+	message=async
+	pair=p-session-echo
+	note=6 · emit() → session(active, playing)
+	description=The same `emit()` call reports the new state through `androidEngine.session` (3.1) and `ttsSessionState` (2.8), so `updateTtsMediaSession` (7.1) sets the session's `PlaybackState` to match — closing the loop the headset key started.
+	code=[`emit` calls `engine.session`](../../../../public/js/tts.js){show=symbol symbol=createTts kind=Function focus="match[const emit = () => { engine?.session?.(active, playing); opts.onState?.({ active, playing]" context=1}
+g7: media-session -> media-session checks
+	role=standing
+	pair=p-session-echo
+	note=7 · PlaybackState set to STATE_PAUSED
+	description=`updateTtsMediaSession` (7.1) is now the invariant's closing step: the session Android shows the headset (and any other media-button listener) agrees with what `pause()` actually did.
+	code=[`updateTtsMediaSession` sets the new state](../../../../Android/app/src/main/java/com/codexa/reader/MainActivity.kt){show=lines lines=318:326}

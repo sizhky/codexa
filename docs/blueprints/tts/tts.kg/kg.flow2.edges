@@ -6,42 +6,42 @@ f1: user -> reader-ui invokes
 	operand_note=`showAnnotationToolbar` (5.7) already captured the selection's start point when the toolbar opened.
 	note=1a · tap "Read aloud from here"
 	description=The `annot-btn-tts` click handler (5.8) reads `_pendingAnnotation.start`, falling back to `findTextRangeInPage` when the selection is gone.
-	code=[`annot-btn-tts` click handler](../../../../public/js/reader.js){show=lines lines=8085:8092}
+	code=[`annot-btn-tts` click handler](../../../../public/js/reader.js){show=lines lines=8081:8088}
 f2: user -> reader-ui invokes
 	role=call
 	message=sync
 	fragment=alt:start point
 	operand=[tap text while reading]
-	operand_note=While `_tts.playing` and no panel is open, a tap outside the left/right nav zones resolves to a DOM point instead of turning the page.
+	operand_note=While the session is active and no panel is open, a tap outside the left/right nav zones resolves to a DOM point instead of turning the page.
 	note=1b · tap text while reading
 	description=The iframe `touchend` handler (5.9) reaches this branch only after the nav-zone check has already returned.
-	code=[touch tap → `playFromPoint`](../../../../public/js/reader.js){show=lines lines=7381:7386}
+	code=[touch tap → `playFromPoint`](../../../../public/js/reader.js){show=lines lines=7377:7382}
 f3: reader-ui -> tts-controller invokes
 	role=call
 	message=sync
 	fragment=alt:start point
 	operand=[select text, tap "Read aloud from here"]
 	note=2a · playFrom(node, offset)
-	description=The click handler calls `_tts.playFrom` (4.5) directly with the captured selection point.
-	code=[`_tts?.playFrom` call](../../../../public/js/reader.js){show=lines lines=8091:8091}
+	description=The click handler calls `_tts.playFrom` (4.10) directly with the captured selection point.
+	code=[`_tts?.playFrom` call](../../../../public/js/reader.js){show=lines lines=8087:8087}
 f4: reader-ui -> tts-controller invokes
 	role=call
 	message=sync
 	fragment=alt:start point
 	operand=[tap text while reading]
 	note=2b · playFromPoint(doc, x, y) → playFrom
-	description=`playFromPoint` (4.6) resolves the tap to a DOM point with `caretAt` (1.7), then calls `playFrom` (4.5) itself.
+	description=`playFromPoint` (4.11) resolves the tap to a DOM point with `caretAt` (1.7), then calls `playFrom` (4.10) itself.
 	code=[`playFromPoint` calls `playFrom`](../../../../public/js/tts.js){show=symbol symbol=createTts kind=Function focus="match[this.playFrom(pt.node, pt.offset);]" context=1}
 f5: tts-controller -> tts-controller checks
 	role=standing
-	note=3 · stop() bumps run, engine.stop()
-	description=`playFrom` (4.5) calls `stop()` first so any run already speaking exits on its next `myRun === run` check (4.1).
-	code=[`playFrom` stops the old run](../../../../public/js/tts.js){show=symbol symbol=createTts kind=Function focus="match[playFrom(node, offset) {]" context=4}
+	note=3 · resolve the block and sentence
+	description=`playFrom` (4.10) resolves `node`/`offset` to a block with `blockIndexFrom` (1.3) and a sentence index inside it with `sentenceIndexAt`/`textOffsetIn` (1.5, 1.6).
+	code=[`playFrom` resolves the cursor](../../../../public/js/tts.js){show=symbol symbol=createTts kind=Function focus="match[playFrom(node, offset) {]" context=6}
 f6: tts-controller -> tts-controller checks
 	role=standing
-	note=4 · play({node, offset})
-	description=`play` (4.1) starts a new run and calls `playEpub(myRun, start)` (4.3); `playEpub` picks the block with `blockIndexFrom` (1.3) and skips the sentences before the point with `sentenceIndexAt`/`textOffsetIn` (1.5, 1.6).
-	code=[`playEpub` start-point skip](../../../../public/js/tts.js){show=symbol symbol=createTts kind=Function focus="match[skip = sentenceIndexAt(blocks]" context=2}
+	note=4 · start({el, sentence})
+	description=`playFrom` calls `start` (4.1) with that cursor; `start` bumps `run`, stops any run in progress, and calls `playEpub(myRun, from)` (4.3), which uses the given cursor instead of the visible anchor and skips straight to its sentence.
+	code=[`start` begins the new run](../../../../public/js/tts.js){show=symbol symbol=createTts kind=Function focus="match[async function start(from = null) {]" context=8}
 f7: tts-controller -> tts-controller checks
 	role=standing
 	fragment=ref:play_flow

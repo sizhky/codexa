@@ -14,6 +14,9 @@ flow:
 flow2:
 	nodes=kg.flow.nodes+kg.nodes
 	edges=kg.flow2.edges
+flow3:
+	nodes=kg.flow.nodes+kg.nodes
+	edges=kg.flow3.edges
 palette=kg.palette
 
 @relations
@@ -27,13 +30,13 @@ build_order:
 	group_by=module
 	color_by=kind
 	edge_label_from=relation
-	caption="Every leaf is built. Numbering is build order: helpers (1) and the Android native bridge (2) exist before the engine adapters (3) that call them; the reader controller (4) exists before the UI wiring (5) that drives it; UI wiring exists before the locale strings and offline delivery (6) that depend on it in this pack, except locale strings, which are numbered first inside module 5 because the button and slider read them."
+	caption="Every leaf is built. Numbering is build order: helpers (1) and the Android native bridge (2) exist before the engine adapters (3) that call them; the reader controller (4) exists before the UI wiring (5) that drives it; UI wiring exists before the locale strings and offline delivery (6) that depend on it in this pack, except locale strings, which are numbered first inside module 5 because the button and bar read them; Android media-key control (7) exists after the controller (4) it drives and the bridge (2) it extends."
 safeguards:
 	source=base
 	group_by=module
 	color_by=kind
 	edge_label_from=relation
-	caption="The one invariant in this feature: a page turn the reader did not ask for restarts reading instead of silently continuing. Node 4.2 (`onRelocated` guard) enforces it and backs the wiring in 5.6 that calls it on every `cx-relocated` event."
+	caption="Three invariants. (a) A page turn the reader did not ask for restarts reading instead of silently continuing — node 4.2 (`onRelocated` guard) enforces it and backs the wiring in 5.6 that calls it on every `cx-relocated` event. (b) Pausing keeps the cursor, so resuming re-reads the paused sentence — node 4.1 enforces it. (c) Media keys reach Codexa while a read-aloud session is active — node 7.1 enforces it by keeping the Android `MediaSession`'s state in step with the controller's own `active`/`playing` pair."
 play_flow:
 	source=flow
 	layout=sequence
@@ -52,13 +55,13 @@ play_flow:
 	slides:
 		start: Steps 1 to 3 — tap and pick an engine
 			nodes=user,reader-ui,tts-controller
-			caption="The reader taps `btn-tts`. `toggle()` calls `play()`, which already holds the engine `pickEngine()` chose when the rendition opened."
+			caption="The reader taps `btn-tts`. `toggle()` calls `start(cursor)`, which already holds the engine `pickEngine()` chose when the rendition opened."
 		epub-loop: Steps 4 to 10 — read one block, then the next
 			nodes=tts-controller,android-engine,android-bridge,android-tts,web-engine,web-speech
 			caption="`playEpub` walks the EPUB's block list from the visible anchor. Each block is split into sentences and spoken one at a time. Android WebView has no `speechSynthesis`, so the alt box shows the native bridge path next to the browser path."
 		page-turn: Step 11 — keep the spoken block on screen
 			nodes=tts-controller,reader-ui
-			caption="When the next block is off screen, `showBlock` calls `reader.next()` under a `selfTurn` guard, so the resulting `cx-relocated` event does not restart reading. A page turn the reader makes themselves is not guarded, and restarts reading from the new page."
+			caption="When the next block is off screen, `showBlock` calls `reader.next()` under a `selfTurn` guard, so the resulting `cx-relocated` event does not restart reading — `onRelocated` (4.2) also checks that the read sentence is actually off screen (`cursorVisible()`) before it would restart anything. A page turn the reader makes themselves is not guarded, and restarts reading from the new page."
 start_here_flow:
 	source=flow2
 	layout=sequence
@@ -75,7 +78,27 @@ start_here_flow:
 	slides:
 		pick: Steps 1 to 2 — pick a start point
 			nodes=user,reader-ui,tts-controller
-			caption="Selecting text and tapping the toolbar's read-aloud action, or tapping text while `_tts.playing` is true, both resolve to a DOM point and call `playFrom` (4.5). The tap path only reaches this alt after the touch handler's own left/right nav-zone check has already returned, so the jump never steals a page-turn tap."
-		resume: Steps 3 to 5 — stop, resume, and skip ahead
+			caption="Selecting text and tapping the toolbar's read-aloud action, or tapping text while `_tts.active` is true, both resolve to a DOM point and call `playFrom` (4.10). The tap path only reaches this alt after the touch handler's own left/right nav-zone check has already returned, so the jump never steals a page-turn tap."
+		resume: Steps 3 to 5 — resolve, start, and skip ahead
 			nodes=tts-controller
-			caption="`playFrom` stops the run in progress, then plays again from the chosen point; `playEpub` picks that point's block and skips the sentences already behind it before speaking resumes through the same engine loop shown in `play_flow`."
+			caption="`playFrom` resolves the point to a block and sentence, then calls `start` (4.1) with that cursor, which stops the run in progress and begins a new one; `playEpub` uses the given cursor instead of the visible anchor and skips the sentences already behind it before speaking resumes through the same engine loop shown in `play_flow`."
+media_key_flow:
+	source=flow3
+	layout=sequence
+	sequence_lanes=headset,media-session,android-bridge,tts-controller,reader-ui
+	sequence_role=role
+	sequence_message=message
+	sequence_fragment=fragment
+	sequence_operand=operand
+	sequence_operand_note=operand_note
+	pair_by=pair
+	edge_label_from=note
+	hover_attrs=description,code
+	caption="A Bluetooth or wired headset's play/pause button pauses and resumes reading the same way the bar's own play/pause button does, and the loop closes: the controller's new state is reported back to Android's own `MediaSession`, so the headset (and the lock-screen media control) always shows the true playback state."
+	slides:
+		key-in: Steps 1 to 4 — a headset key reaches the controller
+			nodes=headset,media-session,android-bridge,tts-controller
+			caption="The headset's press reaches whichever app's `MediaSession` is active (7.1); its callback reports the action to the page (7.4), where `window.__codexaTtsMedia` (7.5) routes it to `pause()` — the same method `toggle()` (4.1) already calls."
+		state-echo: Steps 5 to 7 — the new state reaches back to Android
+			nodes=tts-controller,reader-ui,media-session
+			caption="`emit()` (4.5) updates the bar (5.10) and reports the session's new `active`/`playing` pair back through `ttsSessionState` (2.8), so `updateTtsMediaSession` (7.1) sets the exact `PlaybackState` a headset or lock-screen control expects — invariant (c)."

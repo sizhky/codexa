@@ -3,227 +3,277 @@ s1: 1 <composition>
 	build=Text is split into speakable sentence chunks, EPUB/PDF content is turned into an ordered list of readable pieces, and a selection or a tap is turned into a sentence index inside one of those pieces.
 	evidence=Each helper is a pure function with a doctest-style example in its own docstring.
 	code=|
-		- [`splitSentences`](../../../../public/js/tts.js){change=worktree show=symbol symbol=splitSentences kind=Function focus=changed}
+		- [`splitSentences`](../../../../public/js/tts.js){change=5f0d08e..b6b8933 show=symbol symbol=splitSentences kind=Function focus=changed}
 	n1_1: 1.1 Split text into sentence chunks <leaf>
 		why=A screen reader speaks better in sentence-sized pieces than one long paragraph, and no engine here chunks its input for the caller.
 		description=Splits on sentence-ending punctuation, then hard-wraps any piece still longer than 280 characters at the nearest space.
 		build=`splitSentences(text, max)` returns an ordered array of chunks no longer than `max`.
 		evidence=Its docstring example turns `"One. Two!  Three?"` into `['One.', 'Two!', 'Three?']`.
 		code=|
-			- [`splitSentences`](../../../../public/js/tts.js){change=worktree show=symbol symbol=splitSentences kind=Function focus=changed}
+			- [`splitSentences`](../../../../public/js/tts.js){change=5f0d08e..b6b8933 show=symbol symbol=splitSentences kind=Function focus=changed}
 	n1_2: 1.2 Collect readable DOM blocks <leaf>
 		why=`playEpub` (4.3) needs one flat, ordered list of the paragraph-like elements in an EPUB chapter, with nested duplicates removed.
 		description=Selects `p,h1..h6,li,blockquote,dt,dd,figcaption,pre,td,th` and drops a block that contains another block, so nested text is read once.
 		build=`collectBlocks(doc)` returns the leaf block elements of a document in reading order.
-		evidence=Called from `playEpub` (4.3) on the EPUB iframe document; a manual EPUB read-aloud pass is the user's acceptance check.
+		evidence=Called from `playEpub` (4.3) on the EPUB iframe document, and again by `nextBlocks` (4.7) each time it re-checks whether a new block has appeared.
 		code=|
-			- [`collectBlocks`](../../../../public/js/tts.js){change=worktree show=symbol symbol=collectBlocks kind=Function focus=changed}
+			- [`collectBlocks`](../../../../public/js/tts.js){change=5f0d08e..b6b8933 show=symbol symbol=collectBlocks kind=Function focus=changed}
 	n1_3: 1.3 Locate the block at an anchor <leaf>
 		why=Reading must start from the block the reader can currently see, not from the top of the chapter.
 		description=Returns the index of the first block at or after a given DOM node, using document position when the node is not itself a block.
 		build=`blockIndexFrom(blocks, node)` returns `-1` when `blocks` is empty and no block follows `node`.
-		evidence=Feeds `playEpub` (4.3), which starts its walk from `reader._visibleAnchorEl()`.
+		evidence=Feeds `playEpub` (4.3), which starts its walk from `reader._visibleAnchorEl()` whenever no explicit start cursor (4.5) was given.
 		code=|
-			- [`blockIndexFrom`](../../../../public/js/tts.js){change=worktree show=symbol symbol=blockIndexFrom kind=Function focus=changed}
+			- [`blockIndexFrom`](../../../../public/js/tts.js){change=5f0d08e..b6b8933 show=symbol symbol=blockIndexFrom kind=Function focus=changed}
 	n1_4: 1.4 Turn PDF text items into text <leaf>
 		why=`pdf.js` returns text as a list of positioned items, not a string; `splitSentences` (1.1) needs a string.
 		description=Joins each item's `str`, inserting a newline after an item whose `hasEOL` flag is set and a space otherwise.
 		build=`pdfItemsToText(items)` returns one string per page, ready for `splitSentences`.
-		evidence=Feeds `playPdf` (4.4), one call per rendered PDF page.
+		evidence=Feeds `pdfSentences` (4.9), which caches one call per rendered PDF page for `playPdf` (4.4) and `stepCursor` (4.6).
 		code=|
-			- [`pdfItemsToText`](../../../../public/js/tts.js){change=worktree show=symbol symbol=pdfItemsToText kind=Function focus=changed}
+			- [`pdfItemsToText`](../../../../public/js/tts.js){change=5f0d08e..b6b8933 show=symbol symbol=pdfItemsToText kind=Function focus=changed}
 	n1_5: 1.5 Locate the sentence at a text offset <leaf>
-		why=`playFrom` (4.5) must skip the sentences already spoken before a chosen start point, not restart the whole block.
+		why=`playFrom` (4.10) must skip the sentences already spoken before a chosen start point, not restart the whole block.
 		description=Splits the block's text the same way `splitSentences` (1.1) does, then walks the resulting chunks until the given character offset falls inside one.
 		build=`sentenceIndexAt(text, offset)` returns the index of the `splitSentences()` chunk that holds `offset`.
 		evidence=Its docstring example turns `('One. Two! Three?', 6)` into `1`.
 		code=|
-			- [`sentenceIndexAt`](../../../../public/js/tts.js){change=worktree show=symbol symbol=sentenceIndexAt kind=Function focus=changed}
+			- [`sentenceIndexAt`](../../../../public/js/tts.js){change=5f0d08e..b6b8933 show=symbol symbol=sentenceIndexAt kind=Function focus=changed}
 	n1_6: 1.6 Convert a DOM point to a character offset <leaf>
 		why=A selection or a caret lookup gives a `(node, offset)` DOM point; `sentenceIndexAt` (1.5) needs a plain character offset counted from the start of the block's own text.
 		description=Builds a `Range` from the start of the block element to `(node, offset)` and measures its stringified length; returns `0` if the `Range` cannot be built.
 		build=`textOffsetIn(el, node, offset)` returns the character offset of `(node, offset)` inside `el.textContent`.
-		evidence=Feeds `playEpub` (4.3) when a start point is given, and `playFrom` (4.5) indirectly through it.
+		evidence=Feeds `playFrom` (4.10) directly, which calls it once per jump to compute the skip offset passed to `sentenceIndexAt` (1.5).
 		code=|
-			- [`textOffsetIn`](../../../../public/js/tts.js){change=worktree show=symbol symbol=textOffsetIn kind=Function focus=changed}
+			- [`textOffsetIn`](../../../../public/js/tts.js){change=5f0d08e..b6b8933 show=symbol symbol=textOffsetIn kind=Function focus=changed}
 	n1_7: 1.7 Locate the DOM point under a tap <leaf>
-		why=`playFromPoint` (4.6) only has viewport coordinates from a touch event; the sentence helpers (1.5, 1.6) need a DOM point.
+		why=`playFromPoint` (4.11) only has viewport coordinates from a touch event; the sentence helpers (1.5, 1.6) need a DOM point.
 		description=Uses `caretRangeFromPoint` where the runtime supports it, else `caretPositionFromPoint`; returns `null` when neither does.
 		build=`caretAt(doc, x, y)` returns `{node, offset}` or `null`.
 		assumption=Unknown (needs your test): `caretRangeFromPoint`/`caretPositionFromPoint` support was not verified across every browser this reader targets.
 		code=|
-			- [`caretAt`](../../../../public/js/tts.js){change=worktree show=symbol symbol=caretAt kind=Function focus=changed}
+			- [`caretAt`](../../../../public/js/tts.js){change=5f0d08e..b6b8933 show=symbol symbol=caretAt kind=Function focus=changed}
 s2: 2 <composition>
 	why=Android's WebView has no `window.speechSynthesis`, so speaking on Android needs the platform's own `TextToSpeech` reached through a JavaScript bridge.
-	build=A `JsBridge` method starts or stops speech, a lazily created `TextToSpeech` instance speaks one utterance at a time, and its result is reported back into the page.
-	evidence=`window.AndroidCodexa.ttsSpeak`/`ttsStop` exist on the bridge and every utterance resolves to exactly one `window.__codexaTtsEvent` call.
-	assumption=Unknown (needs your test): this Kotlin change has not been compiled or run; confirm the app builds and speaks on a device before relying on it.
+	build=A `JsBridge` method starts or stops speech, sets the output volume for the next utterance, and reports the read-aloud session's state; a lazily created `TextToSpeech` instance speaks one utterance at a time, and its result is reported back into the page.
+	evidence=`window.AndroidCodexa.ttsSpeak`/`ttsStop`/`ttsSetVolume`/`ttsSessionState` exist on the bridge and every utterance resolves to exactly one `window.__codexaTtsEvent` call.
+	assumption=Unknown (needs your test): confirm the app builds and speaks on a device before relying on it.
 	code=|
-		- [`MainActivity`](../../../../Android/app/src/main/java/com/codexa/reader/MainActivity.kt){change=worktree show=lines lines=209:270}
+		- [`MainActivity` JsBridge](../../../../Android/app/src/main/java/com/codexa/reader/MainActivity.kt){change=5f0d08e..b6b8933 show=lines lines=217:239}
 	n2_1: 2.1 Declare TTS_SERVICE package visibility <leaf>
 		why=Android 11+ hides other packages from an app unless it declares which intents it needs to query, and `TextToSpeech` must find an installed engine package.
 		description=Adds a `<queries>` block naming the `android.intent.action.TTS_SERVICE` intent action.
 		build=The manifest grants visibility into installed TTS engines on API 30+.
 		evidence=Without it, `TextToSpeech(this){...}` can silently find no engine on a fresh API 30+ install.
 		code=|
-			- [`AndroidManifest.xml`](../../../../Android/app/src/main/AndroidManifest.xml){change=worktree show=lines lines=7:12}
+			- [`AndroidManifest.xml`](../../../../Android/app/src/main/AndroidManifest.xml){change=5f0d08e..b6b8933 show=lines lines=7:12}
 	n2_2: 2.2 Expose ttsSpeak/ttsStop to JavaScript <leaf>
 		why=`androidEngine` (3.1) in the page needs a synchronous-looking call into native code, and Android's JS bridge only accepts primitive arguments and returns nothing.
 		description=`@JavascriptInterface` methods that hop to the UI thread and call `speakTts`/stop the current utterance.
 		build=`ttsSpeak(id, text, rate, lang)` and `ttsStop()` are callable as `window.AndroidCodexa.ttsSpeak(...)` from `androidEngine` (3.1).
 		evidence=`androidEngine.speak` calls `bridge.ttsSpeak` inside a try/catch and resolves `'error'` if the call throws.
 		code=|
-			- [`ttsSpeak`](../../../../Android/app/src/main/java/com/codexa/reader/MainActivity.kt){change=worktree show=lines lines=209:213}
-			- [`ttsStop`](../../../../Android/app/src/main/java/com/codexa/reader/MainActivity.kt){change=worktree show=lines lines=215:218}
+			- [`ttsSpeak`](../../../../Android/app/src/main/java/com/codexa/reader/MainActivity.kt){change=5f0d08e..b6b8933 show=lines lines=218:221}
+			- [`ttsStop`](../../../../Android/app/src/main/java/com/codexa/reader/MainActivity.kt){change=5f0d08e..b6b8933 show=lines lines=229:232}
 	n2_3: 2.3 Speak with lazy init and one pending utterance <leaf>
 		why=Creating a `TextToSpeech` engine is asynchronous and should happen once, not on every utterance; a call that arrives before init finishes must not be dropped.
-		description=Speaks immediately once the engine is ready; otherwise replaces any earlier pending utterance (reporting it `stopped`) and starts the engine at most once.
+		description=Speaks immediately once the engine is ready, at the volume `ttsSetVolume` (2.7) last set; otherwise replaces any earlier pending utterance (reporting it `stopped`) and starts the engine at most once.
 		build=`speakTts(id, text, rate, lang)` keeps at most one queued utterance and lazily owns the `TextToSpeech` instance.
 		evidence=A second call while the engine is still initializing reports the first call's id as `stopped`, matching the "one pending utterance" comment above it.
 		code=|
-			- [`speakTts`](../../../../Android/app/src/main/java/com/codexa/reader/MainActivity.kt){change=worktree show=lines lines=230:244}
+			- [`speakTts`](../../../../Android/app/src/main/java/com/codexa/reader/MainActivity.kt){change=5f0d08e..b6b8933 show=lines lines=251:266}
 	n2_4: 2.4 Finish init and listen for utterance progress <leaf>
 		why=`speak()` only reports through callbacks; the bridge (2.2) needs each callback turned into exactly one event per utterance id.
-		description=On successful init, plays the one pending utterance and installs an `UtteranceProgressListener` that maps `onDone`/`onError`/`onStop` to `sendTtsEvent` (2.5). On failure, shuts the engine down and reports `error`.
+		description=On successful init, sets the engine's audio attributes (7.2 shares the same attributes for audio-focus requests), plays the one pending utterance, and installs an `UtteranceProgressListener` that maps `onDone`/`onError`/`onStop` to `sendTtsEvent` (2.5). On failure, shuts the engine down and reports `error`.
 		build=`onTtsInit(status)` leaves `tts` either usable and listened-to, or `null`.
 		evidence=`sendTtsEvent` fires exactly once per utterance id, from whichever branch of the listener the engine takes.
 		code=|
-			- [`onTtsInit`](../../../../Android/app/src/main/java/com/codexa/reader/MainActivity.kt){change=worktree show=lines lines=246:265}
+			- [`onTtsInit`](../../../../Android/app/src/main/java/com/codexa/reader/MainActivity.kt){change=5f0d08e..b6b8933 show=lines lines=268:288}
 	n2_5: 2.5 Report an utterance event back to JavaScript <leaf>
 		why=`androidEngine` (3.1) resolves its `speak()` promise from `window.__codexaTtsEvent`, so the native side needs a way to call back into the page.
 		description=Builds a small JS call with the utterance id and event name and runs it through `WebView.evaluateJavascript`.
 		build=`sendTtsEvent(id, event)` calls `window.__codexaTtsEvent(id, event)` in the page, guarded by `&&` so a page without the handler does nothing.
 		evidence=`androidEngine`'s `pending` map (3.1) resolves the matching promise the moment this call lands.
 		code=|
-			- [`sendTtsEvent`](../../../../Android/app/src/main/java/com/codexa/reader/MainActivity.kt){change=worktree show=lines lines=267:270}
+			- [`sendTtsEvent`](../../../../Android/app/src/main/java/com/codexa/reader/MainActivity.kt){change=5f0d08e..b6b8933 show=lines lines=383:386}
 	n2_6: 2.6 Release TextToSpeech on destroy <leaf>
 		why=A `TextToSpeech` engine holds a system-service connection that leaks if the activity is destroyed while it is open.
-		description=Shuts the engine down and clears the reference before the WebView itself is destroyed.
+		description=Shuts the engine down and clears the reference before the WebView itself is destroyed; `onDestroy` also releases the media session (7.6).
 		build=`onDestroy()` calls `tts?.shutdown()` ahead of its existing WebView teardown.
 		evidence=No test exercises `onDestroy`; the user's own manual app-close check is the evidence for this leaf.
 		code=|
-			- [`onDestroy`](../../../../Android/app/src/main/java/com/codexa/reader/MainActivity.kt){change=worktree show=lines lines=322:324}
+			- [`onDestroy` TTS teardown](../../../../Android/app/src/main/java/com/codexa/reader/MainActivity.kt){change=5f0d08e..b6b8933 show=lines lines=438:440}
+	n2_7: 2.7 Set output volume for the next utterance <leaf>
+		why=The reader's volume slider (5.11) changes what the reader hears immediately, but `TextToSpeech.speak` only takes a volume per call, not a standing setting.
+		description=Clamps the given volume to `0..1` and stores it; `speakTts` (2.3) reads the stored value into `KEY_PARAM_VOLUME` on every call.
+		build=`ttsSetVolume(volume)` is callable as `window.AndroidCodexa.ttsSetVolume(volume)` from `androidEngine` (3.1).
+		evidence=`androidEngine.speak` calls `bridge.ttsSetVolume(volume)` immediately before `bridge.ttsSpeak`, guarded so an older APK without the method is skipped.
+		code=|
+			- [`ttsSetVolume`](../../../../Android/app/src/main/java/com/codexa/reader/MainActivity.kt){change=5f0d08e..b6b8933 show=lines lines=224:227}
+	n2_8: 2.8 Expose ttsSessionState to JavaScript <leaf>
+		why=Headset media keys (7) only work while the native media session mirrors the read-aloud session, and the page is the one place that knows whether a session is active or playing.
+		description=`@JavascriptInterface` method that hops to the UI thread and updates the media session (7.1).
+		build=`ttsSessionState(active, playing)` is callable as `window.AndroidCodexa.ttsSessionState(active, playing)` from `androidEngine` (3.1).
+		evidence=`androidEngine.session` calls `bridge.ttsSessionState(active, playing)` on every controller state change, guarded so an older APK without the method is skipped.
+		code=|
+			- [`ttsSessionState`](../../../../Android/app/src/main/java/com/codexa/reader/MainActivity.kt){change=5f0d08e..b6b8933 show=lines lines=234:238}
 s3: 3 <composition>
 	why=Two runtimes can speak: Android WebView through a native bridge, and iOS WKWebView/browsers through `speechSynthesis`. The controller (4) should not know which one it has.
-	build=Both engines expose the same `speak(text, {rate, lang}) -> Promise<'done'|'stopped'|'error'>` and `stop()` shape; `pickEngine` chooses one at controller creation.
+	build=Both engines expose the same `speak(text, {rate, volume, lang}) -> Promise<'done'|'stopped'|'error'>` and `stop()` shape; `pickEngine` chooses one at controller creation.
 	evidence=`createTts` (4) calls `pickEngine()` once and never branches on engine name again.
 	code=|
-		- [`pickEngine`](../../../../public/js/tts.js){change=worktree show=symbol symbol=pickEngine kind=Function focus=changed}
+		- [`pickEngine`](../../../../public/js/tts.js){change=5f0d08e..b6b8933 show=symbol symbol=pickEngine kind=Function focus=changed}
 	n3_1: 3.1 Android engine adapter <leaf>
-		why=`window.AndroidCodexa.ttsSpeak` resolves through an out-of-band callback (2.5), not a return value, so it needs wrapping into the shared Promise-based engine shape.
-		description=Keeps a `pending` map from utterance id to its `resolve` function; `window.__codexaTtsEvent` (set here) looks the id up and resolves it.
-		build=`androidEngine(win, bridge).speak(text, opts)` resolves once `sendTtsEvent` (2.5) reports that utterance's id.
+		why=`window.AndroidCodexa.ttsSpeak` resolves through an out-of-band callback (2.5), not a return value, so it needs wrapping into the shared Promise-based engine shape; headset keys (7) also need to know whether this engine is currently active or playing.
+		description=Keeps a `pending` map from utterance id to its `resolve` function; `window.__codexaTtsEvent` (set here) looks the id up and resolves it. `speak` sets the device volume through `bridge.ttsSetVolume` (2.7) before every call. `session(active, playing)` forwards the read-aloud session's state to `bridge.ttsSessionState` (2.8) so headset media keys keep working (7.1); both calls are guarded for an older APK build that lacks the method.
+		build=`androidEngine(win, bridge).speak(text, opts)` resolves once `sendTtsEvent` (2.5) reports that utterance's id; `androidEngine(win, bridge).session(active, playing)` reports session state.
 		evidence=`stop()` resolves every still-pending promise as `'stopped'` before clearing the map, so a stopped engine never leaves a caller waiting.
 		code=|
-			- [`androidEngine`](../../../../public/js/tts.js){change=worktree show=symbol symbol=androidEngine kind=Function focus=changed}
+			- [`androidEngine`](../../../../public/js/tts.js){change=5f0d08e..b6b8933 show=symbol symbol=androidEngine kind=Function focus=changed}
 	n3_2: 3.2 Web engine adapter <leaf>
 		why=iOS WKWebView and desktop/mobile browsers expose `window.speechSynthesis` directly; no native bridge is needed there.
-		description=Wraps one `SpeechSynthesisUtterance` per call; `unlock()` speaks an empty utterance so iOS treats the first real utterance as inside the same user gesture.
+		description=Wraps one `SpeechSynthesisUtterance` per call, setting its `rate` and `volume`; `unlock()` speaks an empty utterance so iOS treats the first real utterance as inside the same user gesture.
 		build=`webEngine(synth).speak(text, opts)` resolves `'done'`, or `'stopped'` for an interrupted/canceled utterance, or `'error'` otherwise.
 		assumption=Unknown (needs your test): whether iOS's silent (mute) switch silences `speechSynthesis` inside a WKWebView is unconfirmed on-device.
 		code=|
-			- [`webEngine`](../../../../public/js/tts.js){change=worktree show=symbol symbol=webEngine kind=Function focus=changed}
+			- [`webEngine`](../../../../public/js/tts.js){change=5f0d08e..b6b8933 show=symbol symbol=webEngine kind=Function focus=changed}
 	n3_3: 3.3 Pick an engine for this runtime <leaf>
 		why=The controller (4) is created once per rendition and must not re-detect the runtime on every utterance.
 		description=Prefers `window.AndroidCodexa.ttsSpeak` when present, then `window.speechSynthesis`, else no engine.
 		build=`pickEngine(win)` returns an engine object or `null`; `createTts` (4.1) treats `null` as "read-aloud unavailable".
 		evidence=`_tts.available` (used by 5.2's header-button visibility) is exactly `!!engine` from this pick.
 		code=|
-			- [`pickEngine`](../../../../public/js/tts.js){change=worktree show=symbol symbol=pickEngine kind=Function focus=changed}
+			- [`pickEngine`](../../../../public/js/tts.js){change=5f0d08e..b6b8933 show=symbol symbol=pickEngine kind=Function focus=changed}
 s4: 4 <composition>
-	why=One controller owns the play/stop state, the block-by-block or page-by-page read, the rule for when a page turn is allowed, and where in the book a run starts.
-	build=`createTts(reader, opts)` returns `{available, playing, play, stop, toggle, onRelocated, playFrom, playFromPoint}` bound to one `CXReader` instance.
-	evidence=Toggling `btn-tts` (5.2) starts and stops audible speech with the highlighted block tracking the page; selecting text or tapping while reading jumps that same run to a chosen sentence.
+	why=One controller owns the play/pause/stop state, the block-by-block or page-by-page read, the cursor a pause resumes from, and where in the book a run starts.
+	build=`createTts(reader, opts)` returns `{available, active, playing, stop, toggle, prevSentence, nextSentence, prevPage, nextPage, refresh, playFrom, playFromPoint, onRelocated}` bound to one `CXReader` instance.
+	evidence=Toggling `btn-tts` (5.2) starts and pauses audible speech with the highlighted block tracking the page; selecting text or tapping while reading jumps that same run to a chosen sentence; pausing and resuming continues from the same sentence.
 	code=|
-		- [`createTts`](../../../../public/js/tts.js){change=worktree show=symbol symbol=createTts kind=Function focus=changed}
-	n4_1: 4.1 Play, stop, and toggle state <leaf>
-		why=One run must be cleanly cancellable mid-sentence, mid-block, or mid-page, without a stale `await` finishing late and resuming speech nobody asked for.
-		description=A `run` counter is bumped on every `stop()`/`play()`; every loop and `await` in 4.3/4.4 checks its own captured `run` value before acting again.
-		build=`play(start)` picks `playPdf` or `playEpub(myRun, start)` by `reader._isPdf`/`_isCbz`; `stop()` bumps `run`, clears the highlight, and calls `engine.stop()`; `toggle()` picks between them from `playing`.
-		evidence=A `stop()` immediately followed by `play()` (as `onRelocated`, 4.2, does) never leaves two runs speaking at once, because the older run's `myRun === run` check fails on its next step.
+		- [`createTts`](../../../../public/js/tts.js){change=5f0d08e..b6b8933 show=symbol symbol=createTts kind=Function focus=changed}
+	n4_1: 4.1 Session state: active, playing, and the cursor <leaf>
+		why=A reader can pause without ending the session, and headset/Bluetooth keys (7) and the bar's own controls (5.12) all need one shared idea of "reading is on, but not making sound right now" that survives across a pause.
+		description=`active` is true from the first `start()` until `stop()` or the natural end of the book; `playing` is true only while an utterance is in flight or about to be. `cursor` is the sentence being read — `{el, sentence}` for EPUB, `{page, sentence}` for PDF — and a `run` counter is bumped on every `start()`/`pause()`/`stop()`, so every loop and `await` in `playEpub`/`playPdf` (4.3, 4.4) checks its own captured `run` value before acting again.
+		build=`start(from)` begins a new run at `from` or the current cursor; `pause()` bumps `run` and stops the engine but keeps `cursor`; `stop()` bumps `run`, stops the engine, and clears `cursor`; `toggle()` calls `pause()` when `playing`, else `start(cursor)`.
+		invariant=Pausing never clears the cursor: `toggle()` and the media-key handler (7.5) both resume with `start(cursor)`, so the next spoken sentence is the one that was interrupted, not the block's first sentence or the visible anchor.
+		evidence=Acceptance example: pause mid-sentence, then press play again (button, bar, or a Bluetooth headset) — the same sentence is read again from its start, not the next one.
 		code=|
-			- [`createTts` play/stop/toggle](../../../../public/js/tts.js){change=worktree show=symbol symbol=createTts kind=Function focus="match[async function play(start) {]" context=8}
+			- [`start`/`pause`/`stop`/`toggle`](../../../../public/js/tts.js){change=5f0d08e..b6b8933 show=symbol symbol=createTts kind=Function focus="match[async function start(from = null) {]" context=20}
 	n4_2: 4.2 Restart reading after a user page turn <leaf>
 		why=A page turn the reader makes themselves should not be silently ignored, and a page turn this module makes to keep pace should not restart the same block.
-		description=Ignores `cx-relocated` while not playing, while `selfTurn` is true, or within 600ms after this module's own last turn; otherwise stops and replays from the new visible block.
-		build=`onRelocated()` is the whole rule; `turn(fn)` (used by 4.3/4.4) is what sets `selfTurn`/`selfTurnUntil` around this module's own `reader.next()`/`goToSpineItem()` calls.
-		invariant=TTS never turns a page the reader did not ask for except to keep the spoken block on screen; a reader-driven page turn restarts reading from the newly visible page.
-		decision=Restarting from the new page trades mid-sentence continuity for a simple rule: no resume position is tracked across a manual turn.
+		description=Ignores `cx-relocated` while the session is not active, while `selfTurn` is true (this module is mid page-turn), or while the sentence being read is still on screen (`cursorVisible()`); otherwise clears the cursor and, if a run was playing, restarts it from the new visible page.
+		build=`onRelocated()` is the whole rule; `cursorVisible()` checks PDF page visibility or EPUB element visibility depending on `reader._isPdf`; `turn(fn)` (used by 4.3/4.4/4.8) is what sets `selfTurn` around this module's own `reader.next()`/`goToSpineItem()`/`reader.prev()` calls.
+		invariant=(a) TTS never turns a page the reader did not ask for, except to keep the block it is speaking on screen; a reader-driven relocation that moves the read sentence off screen restarts reading from the newly visible page.
+		decision=Restarting from the new page trades mid-sentence continuity for a simple rule: no resume position is tracked across a manual turn that moves the read sentence off screen.
 		evidence=Acceptance example: open an EPUB in the Android app, tap read-aloud, hear the first visible paragraph, and see the page turn only when speech reaches the next page.
 		code=|
-			- [`onRelocated`](../../../../public/js/tts.js){change=worktree show=symbol symbol=createTts kind=Function focus="match[onRelocated() {]" context=6}
-			- [`turn` self-turn guard](../../../../public/js/tts.js){change=worktree show=symbol symbol=createTts kind=Function focus="match[async function turn(fn) {]" context=4}
+			- [`onRelocated`](../../../../public/js/tts.js){change=5f0d08e..b6b8933 show=symbol symbol=createTts kind=Function focus="match[onRelocated() {]" context=6}
+			- [`cursorVisible`/`turn` self-turn guard](../../../../public/js/tts.js){change=5f0d08e..b6b8933 show=symbol symbol=createTts kind=Function focus="match[function cursorVisible() {]" context=10}
 	n4_3: 4.3 Read an EPUB block by block <leaf>
 		why=An EPUB chapter is longer than one screen, so reading it must walk blocks across page turns and, in continuous mode, across appended chapters; and it must be able to start mid-chapter at a chosen point instead of always at the visible anchor.
-		description=Starts from `start.node` (4.5) when given, else the visible anchor (1.3); when `start` lands inside a block, skips the sentences before it using `sentenceIndexAt`/`textOffsetIn` (1.5, 1.6). Otherwise finds the next block from the current index, turns pages under the guard (4.2) until it is visible, highlights it with `cx-tts-active`, and speaks its sentences (1.1) in order; re-collects blocks (1.2) at a chapter or continuous-append boundary, falling back to the visible anchor (1.3) when the last spoken block is no longer connected to the document.
-		build=`playEpub(myRun, start)` runs until `myRun !== run` (4.1), an error, or the end of the book.
+		description=Starts at `from.el` (4.10) when given, skipping to `from.sentence`; otherwise finds the visible anchor (1.3). Turns pages under the guard (4.2, via `showBlock`) until the next block is visible, highlights it with `cx-tts-active`, and speaks its sentences (1.1) in order; when the block list runs out, `nextBlocks` (4.7) re-collects blocks (1.2) at a chapter or continuous-append boundary.
+		build=`playEpub(myRun, from)` runs until `myRun !== run` (4.1), an error, or `nextBlocks` (4.7) reports the end of the book.
 		evidence=Acceptance example: the highlighted paragraph advances one at a time and the page turns only when the next block is off screen.
-		assumption=Unknown: whether continuous (scrolled) mode ever detaches the previously read block from the document is still unverified against every continuous-mode re-render path; the `last.isConnected` check only decides which of two resume strategies runs, not whether either one lands on the exact sentence the reader expects.
 		code=|
-			- [`playEpub`](../../../../public/js/tts.js){change=worktree show=symbol symbol=createTts kind=Function focus="match[async function playEpub(myRun, start) {]" context=20}
-			- [`showBlock` page-turn loop](../../../../public/js/tts.js){change=worktree show=symbol symbol=createTts kind=Function focus="match[async function showBlock(el, myRun) {]" context=8}
+			- [`playEpub`](../../../../public/js/tts.js){change=5f0d08e..b6b8933 show=symbol symbol=createTts kind=Function focus="match[async function playEpub(myRun, from) {]" context=20}
+			- [`showBlock` page-turn loop](../../../../public/js/tts.js){change=5f0d08e..b6b8933 show=symbol symbol=createTts kind=Function focus="match[async function showBlock(el, myRun) {]" context=6}
 	n4_4: 4.4 Read a PDF page by page <leaf>
 		why=A PDF has no DOM blocks; its text comes from `pdf.js` one page at a time, and a scanned page has no text layer at all.
-		description=Walks `reader.spine` from the current page, reading one or two pages per spread (1.4, 1.1); stops and reports no readable text after 3 consecutive empty pages.
-		build=`playPdf(myRun)` runs until `myRun !== run` (4.1), an error, no-text, or the end of the spine.
+		description=Walks `reader.spine` from `from.page` (4.10) or the current page, skipping to `from.sentence`; reads each page's cached sentences (4.9, 1.1) in order and stops, reporting no readable text, after 3 consecutive empty pages.
+		build=`playPdf(myRun, from)` runs until `myRun !== run` (4.1), an error, no-text, or the end of the spine.
 		evidence=`opts.onNoText()` fires only after 3 consecutive pages with zero sentences, so one blank page does not stop the read.
 		code=|
-			- [`playPdf`](../../../../public/js/tts.js){change=worktree show=symbol symbol=createTts kind=Function focus="match[async function playPdf(myRun) {]" context=20}
-	n4_5: 4.5 Jump reading to a chosen point <leaf>
-		why=A reader-chosen start point (a selection or a tap) should win over wherever the visible-page anchor happens to be, matching the start-here invariant.
-		description=Stops any run in progress, then calls `play` (4.1) with `{node, offset}` so `playEpub` (4.3) starts from that point instead of the visible anchor; a no-op for PDF/CBZ renditions or when no node is given, since only EPUB has DOM blocks to jump inside.
-		build=`playFrom(node, offset)` calls `stop()` then `play({node, offset})`.
-		invariant=A user-chosen start point wins over the visible-page anchor: `playEpub` (4.3) uses `start.node` instead of `reader._visibleAnchorEl()` whenever `playFrom` supplies one.
-		evidence=`playEpub` (4.3) reads `start?.node` ahead of `reader._visibleAnchorEl?.()` in its own `blockIndexFrom` call.
+			- [`playPdf`](../../../../public/js/tts.js){change=5f0d08e..b6b8933 show=symbol symbol=createTts kind=Function focus="match[async function playPdf(myRun, from) {]" context=20}
+	n4_5: 4.5 Read-aloud session drives the Android media session <leaf>
+		why=Headset and Bluetooth media keys (7) only work while Android's own media session reflects whether reading is active and playing; something inside the controller has to keep that in step without every leaf knowing about the bridge.
+		description=`emit()` runs on every state change (`start`, `pause`, `stop`) and calls both `engine.session(active, playing)` (3.1) and `opts.onState({active, playing})` (5.4), so the native media session (7.1) and the reader UI (5.10) update from the same one place.
+		build=`emit()` is the single seam the rest of the controller calls after changing `active`/`playing`.
+		evidence=`onState` toggles the bar's `open`/`playing` classes (5.10) in the same call that reports session state to Android (7.1), so the two never disagree about whether a session is active.
 		code=|
-			- [`playFrom`](../../../../public/js/tts.js){change=worktree show=symbol symbol=createTts kind=Function focus="match[playFrom(node, offset) {]" context=4}
-	n4_6: 4.6 Jump reading to a tapped point <leaf>
-		why=The touch handler (5.9) only has viewport coordinates from the tap, not a DOM point that `playFrom` (4.5) needs.
-		description=Resolves the coordinates to a DOM point with `caretAt` (1.7), confirms the point lands inside a readable block, then delegates to `playFrom` (4.5); returns `false` instead of acting when there is no text under the point, so the caller can fall through to its own handling.
+			- [`emit`](../../../../public/js/tts.js){change=5f0d08e..b6b8933 show=symbol symbol=createTts kind=Function focus="match[const emit = () => { engine?.session?.(active, playing); opts.onState?.({ active, playing]" context=1}
+	n4_6: 4.6 Step the cursor across sentences and pages <leaf>
+		why=The bar's previous/next-sentence controls (5.12) must be able to move the cursor by one sentence even across a block or PDF-page boundary, without re-running the whole block/page walk.
+		description=For a PDF cursor, moves the sentence index and crosses into the neighbouring page (using the cache, 4.9) when it runs past either end of the current page's sentences. For an EPUB cursor, moves the sentence index and crosses into the neighbouring block (1.2) when it runs past either end of the current block's sentences; stepping before the first sentence of the book stays on sentence `0` instead of returning `null`.
+		build=`stepCursor(delta)` returns the new cursor, the unchanged cursor at the very start of the book, or `null` past the very end.
+		evidence=`prevSentence`/`nextSentence` (api) call `stepCursor` then `start(cursor)`; `nextSentence` falls back to `start()` with no cursor when stepping forward runs out of blocks, so it can pick up the next chapter the same way `playEpub` (4.3) does.
+		code=|
+			- [`stepCursor`](../../../../public/js/tts.js){change=5f0d08e..b6b8933 show=symbol symbol=createTts kind=Function focus="match[async function stepCursor(delta) {]" context=20}
+	n4_7: 4.7 Find the next blocks to read, waiting once for a continuous-mode append <leaf>
+		why=Reading an EPUB in continuous (scrolled) mode must not falsely conclude "end of book" while the reader's own async chapter-append is still in flight.
+		description=Re-collects blocks (1.2) and looks for one after the last block already read; if the last block is no longer attached to the document, starts over from the first block of the freshly collected list instead of assuming a page turn moved nothing. If a page turn does not reveal a new block and the rendition is in continuous mode, waits once for `reader._maybeAppendNextChapter()` before treating a further non-moving turn as the true end of the book.
+		build=`nextBlocks(myRun, blocks)` returns `{blocks, idx}` for the next readable block, or `null` at the end of the book.
+		evidence=A continuous-mode chapter append that is still running when the reader reaches its bottom does not end the read; a plain page turn that reveals nothing (the real end of the book) still ends it after the single wait.
+		assumption=Unknown: whether continuous mode ever actually detaches the previously-read block from the document, and whether restarting from the fresh list's first block lands on the sentence the reader expects, is still unverified against every continuous-mode re-render path; worth a manual check in continuous mode specifically.
+		code=|
+			- [`nextBlocks`](../../../../public/js/tts.js){change=5f0d08e..b6b8933 show=symbol symbol=createTts kind=Function focus="match[async function nextBlocks(myRun, blocks) {]" context=18}
+	n4_8: 4.8 Turn a page without moving the cursor <leaf>
+		why=The bar's "read from previous/next page" buttons (5.12) must turn one page and start reading from wherever that page begins, discarding the old cursor instead of resuming near it.
+		description=Pauses (4.1), turns one page in the requested direction under the self-turn guard (4.2), clears the cursor, then starts a fresh run with no cursor so `playEpub`/`playPdf` (4.3, 4.4) pick the new page's first block from the visible anchor (1.3).
+		build=`turnPage(dir)` is used by the api's `prevPage`/`nextPage`.
+		evidence=`onRelocated` (4.2) ignores the resulting `cx-relocated` event because `turn()` has `selfTurn` set for the duration of the page turn.
+		code=|
+			- [`turnPage`](../../../../public/js/tts.js){change=5f0d08e..b6b8933 show=symbol symbol=createTts kind=Function focus="match[async function turnPage(dir) {]" context=6}
+	n4_9: 4.9 Cache a PDF page's sentences <leaf>
+		why=`playPdf` (4.4) and `stepCursor` (4.6) both need a page's sentences, and re-reading the page's text content from `pdf.js` on every step would be wasted work and could reorder pages if called concurrently.
+		description=Looks up the page in a `Map` keyed by page number; on a miss, awaits the page's `getTextContent()` (1.4), splits it into sentences (1.1), and stores the result before returning it.
+		build=`pdfSentences(page)` returns the same array on every call for a given page for the life of the controller.
+		evidence=`playPdf` (4.4) and `stepCursor` (4.6) both call `pdfSentences` for the same page without re-fetching `pdf.js` text content twice.
+		code=|
+			- [`pdfSentences`](../../../../public/js/tts.js){change=5f0d08e..b6b8933 show=symbol symbol=createTts kind=Function focus="match[async function pdfSentences(page) {]" context=6}
+	n4_10: 4.10 Jump reading to a chosen point <leaf>
+		why=A reader-chosen start point (a selection or a tap) should win over wherever the visible-page anchor happens to be, matching the start-here invariant.
+		description=Resolves `node`/`offset` to a block (1.3) and a sentence index inside it (1.5, 1.6), then calls `start` (4.1) with that cursor; a no-op for PDF/CBZ renditions or when no node is given, since only EPUB has DOM blocks to jump inside.
+		build=`playFrom(node, offset)` calls `start({el, sentence})`.
+		invariant=(b, start-here) A user-chosen start point wins over the visible-page anchor: `playEpub` (4.3) uses the given cursor instead of `reader._visibleAnchorEl()` whenever `playFrom` supplies one.
+		evidence=`start` (4.1) begins its run with this cursor already set, so `playEpub` (4.3) never consults the visible anchor for this run.
+		code=|
+			- [`playFrom`](../../../../public/js/tts.js){change=5f0d08e..b6b8933 show=symbol symbol=createTts kind=Function focus="match[playFrom(node, offset) {]" context=6}
+	n4_11: 4.11 Jump reading to a tapped point <leaf>
+		why=The touch handler (5.9) only has viewport coordinates from the tap, not a DOM point that `playFrom` (4.10) needs.
+		description=Resolves the coordinates to a DOM point with `caretAt` (1.7), confirms the point lands inside a readable block, then delegates to `playFrom` (4.10); returns `false` instead of acting when there is no text under the point, so the caller can fall through to its own handling.
 		build=`playFromPoint(doc, x, y)` returns `false` when no text block is under the point, otherwise calls `playFrom` and returns `true`.
 		invariant=The tap jump never overrides the left/right page-turn zones: the touch handler (5.9) only calls `playFromPoint` after those zones are checked, and `playFromPoint`'s own `false` return lets an off-text tap fall through unclaimed.
 		evidence=A tap outside any readable block returns `false`, which the touch handler (5.9) reads as "let this tap continue to the vertical nav zones".
 		code=|
-			- [`playFromPoint`](../../../../public/js/tts.js){change=worktree show=symbol symbol=createTts kind=Function focus="match[playFromPoint(doc, x, y) {]" context=6}
+			- [`playFromPoint`](../../../../public/js/tts.js){change=5f0d08e..b6b8933 show=symbol symbol=createTts kind=Function focus="match[playFromPoint(d, x, y) {]" context=6}
 s5: 5 <composition>
-	why=A controller with no button, no label, and no lifecycle wiring is code nobody can reach from the reading screen.
-	build=A labeled header button toggles the controller, a settings row exposes read-aloud speed, reading stops wherever a rendition already ends or restarts, and a selection or a tap can jump reading to a chosen point.
-	evidence=`btn-tts` is visible except for CBZ books or when no engine exists, speech stops before the reader can leave the page it was reading, and both the annotation-toolbar action and the tap gesture reach `playFrom`/`playFromPoint` (4.5, 4.6).
+	why=A controller with no button, no bar, and no lifecycle wiring is code nobody can reach from the reading screen.
+	build=A labeled header button toggles the controller, a bottom bar exposes volume, speed, and playback controls while a session is active, reading stops wherever a rendition already ends or restarts, and a selection or a tap can jump reading to a chosen point.
+	evidence=`btn-tts` is visible except for CBZ books or when no engine exists; the bar opens while a session is active (playing or paused) and closes on `stop()`; both the annotation-toolbar action and the tap gesture reach `playFrom`/`playFromPoint` (4.10, 4.11).
 	code=|
-		- [`reader.js` TTS wiring](../../../../public/js/reader.js){change=worktree show=lines lines=6725:6737}
+		- [`reader.js` TTS wiring](../../../../public/js/reader.js){change=5f0d08e..b6b8933 show=lines lines=6719:6734}
 	n5_1: 5.1 Read-aloud reader-facing text <leaf>
-		why=The button, its settings row, the two runtime toasts, and the annotation-toolbar action all need STE-100 labels before anything can reference them.
-		description=Adds `reader.btn_tts`, `reader.header_btn_tts`, `reader.tts_rate`, `reader.tts_error`, `reader.tts_no_text`, and `reader.annotation_tts_here`.
-		build=Six new keys under `public/locales/en.json`.
+		why=The header button, its settings row, the bar's labels and controls, the two runtime toasts, and the annotation-toolbar action all need STE-100 labels before anything can reference them.
+		description=Adds `reader.btn_tts`, `reader.header_btn_tts`, `reader.tts_rate`, `reader.tts_error`, `reader.tts_no_text`, `reader.annotation_tts_here`, `reader.tts_bar`, `reader.tts_volume`, `reader.tts_stop`, `reader.tts_prev_page`, `reader.tts_prev_sentence`, `reader.tts_play_pause`, `reader.tts_next_sentence`, and `reader.tts_next_page`.
+		build=Thirteen new keys under `public/locales/en.json`.
 		evidence=Every other leaf in this module reads one of these keys by id; none of them writes English text inline.
 		code=|
-			- [`en.json` read-aloud strings](../../../../public/locales/en.json){change=worktree show=lines lines=812:817}
+			- [`en.json` read-aloud strings](../../../../public/locales/en.json){change=5f0d08e..b6b8933 show=lines lines=812:825}
 	n5_2: 5.2 Header button and its visibility rule <leaf>
-		why=The reader needs one button to start and stop listening, and it must disappear where it cannot work (CBZ has no text; no engine means no speech).
+		why=The reader needs one button to start and pause listening, and it must disappear where it cannot work (CBZ has no text; no engine means no speech).
 		description=Adds `#btn-tts` to the header row and hides it unless the preference is on, an engine was found (3.3), and the open book is not a CBZ.
-		build=`applyHeaderBtnVisibility()` sets `btn-tts`'s visibility from `prefs.headerBtnTts && !!_tts?.available && !_cxReader?._isCbz`.
+		build=`applyHeaderBtnVisibility()` sets `btn-tts`'s visibility from `prefs.headerBtnTts && !!_tts?.available && !_cxReader?._isCbz`; the same function hides `annot-btn-tts` (5.8) whenever no engine exists.
 		evidence=Opening a CBZ, or a runtime with no speech engine, leaves the button hidden even when the preference is on.
 		code=|
-			- [`btn-tts` markup](../../../../public/reader.html){change=worktree show=lines lines=234:234}
-			- [`applyHeaderBtnVisibility`](../../../../public/js/reader.js){change=worktree show=symbol symbol=applyHeaderBtnVisibility kind=Function focus=changed}
-	n5_3: 5.3 Settings panel: header toggle and rate slider <leaf>
-		why=The reader needs to hide the button entirely and to slow down or speed up speech without leaving the book.
-		description=A toggle row persists `prefs.headerBtnTts`; a `0.5`-`2.0` range input persists `prefs.ttsRate`, read by the controller's `getRate` (4.1) on every utterance.
-		build=`syncSettingsUi`/`initSettingsUi` read and write `header-btn-tts-toggle` and `tts-rate-slider`; `#btn-tts.tts-playing` gives the button a pressed look while speaking.
-		evidence=Dragging the slider updates `tts-rate-value` immediately and the next spoken sentence uses the new rate.
+			- [`btn-tts` markup](../../../../public/reader.html){change=5f0d08e..b6b8933 show=lines lines=234:234}
+			- [`applyHeaderBtnVisibility`](../../../../public/js/reader.js){change=5f0d08e..b6b8933 show=symbol symbol=applyHeaderBtnVisibility kind=Function focus=changed}
+	n5_3: 5.3 Settings panel: header button visibility toggle <leaf>
+		why=The reader needs to be able to hide the header button entirely, separately from whether an engine is even available.
+		description=A toggle row persists `prefs.headerBtnTts`, read by `applyHeaderBtnVisibility` (5.2); `#btn-tts.tts-playing` gives the button a pressed look while speaking.
+		build=`syncSettingsUi`/`initSettingsUi` read and write `header-btn-tts-toggle`.
+		evidence=Turning the toggle off hides `btn-tts` even on a runtime with an available engine.
 		code=|
-			- [settings rows](../../../../public/reader.html){change=worktree show=lines lines=597:609}
-			- [`syncSettingsUi` TTS rows](../../../../public/js/reader.js){change=worktree show=symbol symbol=syncSettingsUi kind=Function focus="match[const hbtt = document.getElementById]" context=6}
-			- [`initSettingsUi` rate slider](../../../../public/js/reader.js){change=worktree show=symbol symbol=initSettingsUi kind=Function focus="match[document.getElementById('tts-rate-slider')]" context=5}
-			- [`.tts-playing` style](../../../../public/css/reader.css){change=worktree show=lines lines=381:381}
+			- [settings row](../../../../public/reader.html){change=5f0d08e..b6b8933 show=lines lines=623:628}
+			- [`syncSettingsUi` TTS row](../../../../public/js/reader.js){change=5f0d08e..b6b8933 show=symbol symbol=syncSettingsUi kind=Function focus="match[const hbtt = document.getElementById]" context=4}
+			- [`initSettingsUi` toggle](../../../../public/js/reader.js){change=5f0d08e..b6b8933 show=symbol symbol=initSettingsUi kind=Function focus="match['header-btn-tts-toggle',         'headerBtnTts']" context=2}
+			- [`.tts-playing` style](../../../../public/css/reader.css){change=5f0d08e..b6b8933 show=lines lines=381:381}
 	n5_4: 5.4 Create the controller and wire its callbacks <leaf>
-		why=`createTts` (4) needs a live `CXReader`, the current rate/language, and a way to reach the header button and toasts; this leaf is where those seams meet.
-		description=Builds the controller right after `_cxReader` is constructed, passing `getRate`, `getLang` (from EPUB metadata language), `onState` (toggles `.tts-playing` and `aria-pressed`), `onError`, and `onNoText`; the button's click handler calls `toggle()`.
+		why=`createTts` (4) needs a live `CXReader`, the current rate/volume/language, and a way to reach the header button, the bar (5.10), and toasts; this leaf is where those seams meet.
+		description=Builds the controller right after `_cxReader` is constructed, passing `getRate`, `getVolume` (from `prefs.ttsVolume`, 5.11), `getLang` (from EPUB metadata language), `onState` (toggles `.tts-playing`/`aria-pressed` on the button and `open`/`playing` on the bar, 5.10), `onError`, and `onNoText`; the button's click handler calls `toggle()`.
 		build=`_tts = createTts(_cxReader, {...})` inside `startCXRendition`; a `click` listener on `btn-tts` calls `_tts?.toggle()`.
-		evidence=Tapping the button while a book is open flips `.tts-playing` on `btn-tts` in step with `onState`.
+		evidence=Tapping the button while a book is open flips `.tts-playing` on `btn-tts` and opens the bar, both from the same `onState` call.
 		code=|
-			- [controller creation](../../../../public/js/reader.js){change=worktree show=lines lines=6725:6737}
-			- [click handler](../../../../public/js/reader.js){change=worktree show=lines lines=8096:8096}
+			- [controller creation](../../../../public/js/reader.js){change=5f0d08e..b6b8933 show=lines lines=6719:6734}
+			- [click handler](../../../../public/js/reader.js){change=5f0d08e..b6b8933 show=lines lines=8110:8110}
 	n5_5: 5.5 Stop reading at every rendition boundary <leaf>
 		why=Speech left running past the page, sleep timer, or library return it started in would keep talking over a screen the reader no longer sees as the active book.
 		description=Calls `_tts?.stop()` before closing a rendition, before the dim/lock action of a fired sleep timer, and when returning to the library; clears `_tts` before a new rendition replaces `_cxReader`.
@@ -231,56 +281,130 @@ s5: 5 <composition>
 		assumption=Unknown (needs your test): Android's WebView JavaScript keeps running after `onPause`, so a locked screen may not stop speech on its own; iOS needs `UIBackgroundModes=audio` for background playback, which this change does not add.
 		evidence=Locking the sleep timer's dim overlay or leaving the reader silences any speech in progress.
 		code=|
-			- [`_fireSleepTimer` stop](../../../../public/js/reader.js){change=worktree show=symbol symbol=_fireSleepTimer kind=Function focus=changed}
-			- [`returnToLibrary` stop](../../../../public/js/reader.js){change=worktree show=symbol symbol=returnToLibrary kind=Function focus="match[_tts?.stop();]" context=2}
-			- [`startCXRendition` teardown](../../../../public/js/reader.js){change=worktree show=lines lines=6705:6705}
+			- [`_fireSleepTimer` stop](../../../../public/js/reader.js){change=5f0d08e..b6b8933 show=symbol symbol=_fireSleepTimer kind=Function focus=changed}
+			- [`returnToLibrary` stop](../../../../public/js/reader.js){change=5f0d08e..b6b8933 show=symbol symbol=returnToLibrary kind=Function focus="match[_tts?.stop();]" context=2}
+			- [`startCXRendition` teardown](../../../../public/js/reader.js){change=5f0d08e..b6b8933 show=lines lines=6699:6699}
 	n5_6: 5.6 Restart reading through the relocation event <leaf>
 		why=`onRelocated` (4.2) is only useful if every page turn — the reader's or this module's own — actually reaches it.
 		description=Calls `_tts?.onRelocated()` as the first statement of the existing `cx-relocated` handler, ahead of every other handler concern.
 		build=One added line inside `_cxRelocatedHandler`.
 		evidence=This is the one line the invariant on 4.2 depends on ever running; deleting it would silently disable the whole page-turn rule.
 		code=|
-			- [`_cxRelocatedHandler`](../../../../public/js/reader.js){change=worktree show=symbol symbol=_cxRelocatedHandler kind=Function focus="match[_tts?.onRelocated();]" context=2}
+			- [`_cxRelocatedHandler`](../../../../public/js/reader.js){change=5f0d08e..b6b8933 show=symbol symbol=_cxRelocatedHandler kind=Function focus="match[_tts?.onRelocated();]" context=2}
 	n5_7: 5.7 Capture the selection's start point for annotation actions <leaf>
 		why=The read-aloud-from-here action (5.8) needs the exact DOM point the reader selected, not only the copied text `showAnnotationToolbar` already stored.
 		description=Reads the iframe's current `Selection`'s first range and stores its `startContainer`/`startOffset` on `_pendingAnnotation.start` alongside the existing `cfiRange`/`text`; `null` when there is no live selection.
 		build=`showAnnotationToolbar(cfiRange, text)` adds a `start` field to `_pendingAnnotation`.
 		evidence=`annot-btn-tts` (5.8) reads `_pendingAnnotation.start` first, before falling back to a text search.
 		code=|
-			- [`showAnnotationToolbar`](../../../../public/js/reader.js){change=worktree show=lines lines=2557:2562}
+			- [`showAnnotationToolbar`](../../../../public/js/reader.js){change=5f0d08e..b6b8933 show=symbol symbol=showAnnotationToolbar kind=Function focus=changed}
 	n5_8: 5.8 Read aloud from the selected point <leaf>
 		why=The annotation toolbar (opened on a long-press selection) needs its own way to start reading exactly there, not only from the header button's visible-anchor start.
-		description=Uses `_pendingAnnotation.start` (5.7) when its node is still attached to the document, otherwise re-finds the copied text with `findTextRangeInPage` and takes that range's start; closes the toolbar, then calls `_tts.playFrom` (4.5) when a start point was found either way.
+		description=Uses `_pendingAnnotation.start` (5.7) when its node is still attached to the document, otherwise re-finds the copied text with `findTextRangeInPage` and takes that range's start; closes the toolbar, then calls `_tts.playFrom` (4.10) when a start point was found either way.
 		build=`annot-btn-tts`'s click handler; markup added to `#annot-toolbar` in `reader.html`; visibility follows `_tts?.available` in `applyHeaderBtnVisibility` (5.2).
 		evidence=`reader.annotation_tts_here` (5.1) labels the button; a selection that scrolled out of view before the tap still resolves through the `findTextRangeInPage` fallback.
 		code=|
-			- [`annot-btn-tts` markup](../../../../public/reader.html){change=worktree show=lines lines=1259:1259}
-			- [click handler](../../../../public/js/reader.js){change=worktree show=lines lines=8085:8092}
-			- [visibility rule](../../../../public/js/reader.js){change=worktree show=lines lines=3206:3206}
+			- [`annot-btn-tts` markup](../../../../public/reader.html){change=5f0d08e..b6b8933 show=lines lines=1278:1278}
+			- [click handler](../../../../public/js/reader.js){change=5f0d08e..b6b8933 show=lines lines=8081:8088}
+			- [visibility rule](../../../../public/js/reader.js){change=5f0d08e..b6b8933 show=lines lines=3207:3207}
 	n5_9: 5.9 Jump reading to a tapped point in the touch handler <leaf>
 		why=The header button and the annotation action both need a matching in-page gesture: tapping text while already reading should jump there too.
-		description=Runs after the left/right nav-zone branch and before the vertical nav-zone branch of the iframe `touchend` handler; while `_tts.playing` and no sidebar/settings panel is open, resolves the tap to `_tts.playFromPoint` (4.6) and, when it claims the tap, prevents the default action and returns so the vertical zones never see it.
+		description=Runs after the left/right nav-zone branch and before the vertical nav-zone branch of the iframe `touchend` handler; while the session is `active` (playing or paused) and no sidebar/settings/annotation-toolbar panel is open, resolves the tap to `_tts.playFromPoint` (4.11) and, when it claims the tap, prevents the default action and returns so the vertical zones never see it.
 		build=One added block inside the iframe's `touchend` listener.
 		invariant=The tap jump never overrides the left/right page-turn zones: this block sits strictly after the `inNavZone` branch's own `return`, so a tap inside a nav zone never reaches it.
 		code=|
-			- [touch tap → `playFromPoint`](../../../../public/js/reader.js){change=worktree show=lines lines=7381:7386}
+			- [touch tap → `playFromPoint`](../../../../public/js/reader.js){change=5f0d08e..b6b8933 show=lines lines=7377:7382}
+	n5_10: 5.10 Read-aloud bar: open while a session is active <leaf>
+		why=Volume, speed, and playback controls (5.11, 5.12) are only useful while a read-aloud session exists, and they must stay reachable through a pause, not only while audio is actually playing.
+		description=A fixed bottom bar, hidden by a `translateY(100%)` transform and `visibility:hidden` until `.open` is added; `.playing` swaps which of the play/pause icons the play button shows. `onState` (5.4) toggles both classes from the same `active`/`playing` pair `createTts` (4.5) emits.
+		build=`#tts-bar` markup in `reader.html`; `.tts-bar`/`.tts-bar.open`/`.tts-bar.playing` rules in `reader.css`.
+		evidence=Starting a read pushes the bar up into view; pausing keeps it open with the play icon shown; `stop()` (4.1) closes it.
+		assumption=Known limit: the bar covers the bottom of the reading page while it is open, and this change does not reserve space for it above the bar.
+		code=|
+			- [`tts-bar` markup](../../../../public/reader.html){change=5f0d08e..b6b8933 show=lines lines=281:282}
+			- [`.tts-bar` styles](../../../../public/css/reader.css){change=5f0d08e..b6b8933 show=lines lines=382:401}
+	n5_11: 5.11 Bar controls: volume and speed <leaf>
+		why=The reader needs to change how loud and how fast reading is without leaving the book, and the values must persist across a book close/reopen the same way other reader prefs do.
+		description=Two range inputs plus step buttons write `prefs.ttsVolume` (`0-100`) and `prefs.ttsRate` (`0.5-2`) through one shared `setTtsPref`, clamped by `TTS_PREF_RANGE`; `syncTtsBar()` reflects the current values into the slider positions and their numeric labels. A `change` event on either slider, and every step-button click, also calls `_tts?.refresh()` (4.1) so the sentence already in progress restarts with the new value instead of waiting for the next one.
+		build=`TTS_PREF_RANGE`, `syncTtsBar`, `setTtsPref`, and the slider/step-button listeners in `reader.js`; `tts-volume-slider`/`tts-rate-slider` and their step buttons in `reader.html`.
+		evidence=Dragging the volume slider updates `tts-volume-value` immediately; releasing it re-reads the sentence in progress at the new volume.
+		code=|
+			- [volume/speed rows](../../../../public/reader.html){change=5f0d08e..b6b8933 show=lines lines=283:296}
+			- [`syncTtsBar`/`setTtsPref`](../../../../public/js/reader.js){change=5f0d08e..b6b8933 show=lines lines=8112:8133}
+	n5_12: 5.12 Bar controls: stop, page turn, sentence step, play/pause <leaf>
+		why=The bar is the one place all of the controller's non-jump actions are reachable: ending the session, turning a page deliberately, stepping by sentence, and toggling play/pause.
+		description=Six buttons call the matching controller method directly: stop, previous sentence, play/pause (`toggle`), next sentence, and read-from-previous/next-page.
+		build=`tts-btn-stop`/`tts-btn-prev-page`/`tts-btn-prev-sentence`/`tts-btn-play`/`tts-btn-next-sentence`/`tts-btn-next-page` click handlers call `_tts?.stop()`/`prevPage()`/`prevSentence()`/`toggle()`/`nextSentence()`/`nextPage()` (4.1, 4.6, 4.8).
+		evidence=Each button's own labeled action, read from `reader.tts_stop`/`tts_prev_page`/`tts_prev_sentence`/`tts_play_pause`/`tts_next_sentence`/`tts_next_page` (5.1).
+		code=|
+			- [control row markup](../../../../public/reader.html){change=5f0d08e..b6b8933 show=lines lines=297:303}
+			- [button handlers](../../../../public/js/reader.js){change=5f0d08e..b6b8933 show=lines lines=8141:8146}
 s6: 6 <composition>
 	why=A PWA reader must keep working offline, and a stale service-worker cache would keep serving the reader without the new read-aloud file at all.
 	build=`tts.js` is added to the precached app shell, and the cache version is bumped so every client actually refetches it.
 	evidence=A cold, offline load of the reader still finds `/js/tts.js` served from cache.
 	code=|
-		- [`sw.js`](../../../../public/sw.js){change=worktree show=lines lines=4:34}
+		- [`sw.js`](../../../../public/sw.js){change=5f0d08e..b6b8933 show=lines lines=4:34}
 	n6_1: 6.1 Precache tts.js in the service worker <leaf>
 		why=`reader.js` (5.4) imports `./tts.js`; an offline load with no cached copy would fail that import.
 		description=Adds `/js/tts.js` to the `APP_SHELL` array precached on install.
 		build=One line inside `APP_SHELL`.
 		evidence=`caches.open(CACHE_VERSION).then(cache => cache.addAll(APP_SHELL))` (install handler) then includes this path.
 		code=|
-			- [`APP_SHELL` entry](../../../../public/sw.js){change=worktree show=lines lines=34:34}
+			- [`APP_SHELL` entry](../../../../public/sw.js){change=5f0d08e..b6b8933 show=lines lines=34:34}
 	n6_2: 6.2 Bump the cache version <leaf>
 		why=A precache list only changes what a fresh install caches; an already-installed client keeps its old cache under the old version string until the version changes.
-		description=Changes `CACHE_VERSION` from `br-v20260920001` to `br-v20260925002`.
+		description=Changes `CACHE_VERSION` on every change to the app shell, most recently to add the headset media-key control (7).
 		build=One constant.
 		evidence=The service worker's activate handler deletes every cache whose key is not the current `CACHE_VERSION` or `BOOKS_CACHE`, so this bump is what makes 6.1 reach existing installs.
 		code=|
-			- [`CACHE_VERSION`](../../../../public/sw.js){change=worktree show=lines lines=4:4}
+			- [`CACHE_VERSION`](../../../../public/sw.js){change=5f0d08e..b6b8933 show=lines lines=4:4}
+s7: 7 <composition>
+	why=Bluetooth and wired headset keys reach whichever app the system's media-button routing currently points at, and it does not point at Codexa on its own just because the page is speaking.
+	build=`ttsSessionState` (2) updates an Android `MediaSession` whose playback state mirrors the read-aloud session (4.5); the session requests audio focus while playing and plays a short silent track so media-button routing stays on this app between utterances (`TextToSpeech` audio plays in the engine's own process, not this app's); the session's callbacks call back into the page, where `window.__codexaTtsMedia` routes each action to the controller (4).
+	evidence=The user confirmed on a device that a Bluetooth headset's play/pause buttons pause and resume reading.
+	code=|
+		- [media-session block](../../../../Android/app/src/main/java/com/codexa/reader/MainActivity.kt){change=5f0d08e..b6b8933 show=lines lines=290:386}
+	n7_1: 7.1 Keep a MediaSession in step with the read-aloud session <leaf>
+		why=A `MediaSession` that is not marked active, or whose `PlaybackState` disagrees with reality, does not reliably receive headset key events and shows a wrong play/pause icon wherever the state is surfaced.
+		description=Creates the session lazily on first use, with a callback that maps each of its five actions to `sendTtsMedia` (7.4); sets its `PlaybackState` to `STATE_PLAYING`/`STATE_PAUSED` and marks it active; when the read-aloud session is no longer active, marks the session inactive instead of destroying it.
+		build=`updateTtsMediaSession(active, playing)` is called from `ttsSessionState` (2.8), itself called from `androidEngine.session` (3.1) through `emit()` (4.5).
+		invariant=(c) Media keys reach Codexa while a read-aloud session is active: the session's `isActive` flag and its `PlaybackState.STATE_PLAYING`/`STATE_PAUSED` value are set from the exact same `active`/`playing` pair the controller (4.1) emits, on every state change.
+		evidence=The user confirmed on device that Bluetooth play/pause reach the app while reading; this was not exercised by an automated test.
+		code=|
+			- [`updateTtsMediaSession`](../../../../Android/app/src/main/java/com/codexa/reader/MainActivity.kt){change=5f0d08e..b6b8933 show=lines lines=299:331}
+	n7_2: 7.2 Request and release audio focus while playing <leaf>
+		why=Reading should not talk over another app's audio, and should not keep exclusive audio focus once nothing is being spoken.
+		description=Requests `AUDIOFOCUS_GAIN` only while playing; on a full loss of focus, abandons the request; on any loss (including transient, such as a short notification sound), pauses reading through `sendTtsMedia` (7.4) instead of stopping it outright.
+		build=`requestTtsFocus()`/`abandonTtsFocus()`, called from `updateTtsMediaSession` (7.1) and `onDestroy` (2.6).
+		evidence=`sendTtsMedia("pause")` is called from the focus-change listener itself, using the same media action path a physical pause button uses.
+		code=|
+			- [`requestTtsFocus`/`abandonTtsFocus`](../../../../Android/app/src/main/java/com/codexa/reader/MainActivity.kt){change=5f0d08e..b6b8933 show=lines lines=358:376}
+	n7_3: 7.3 Keep media-key routing on this app between utterances <leaf>
+		why=Android routes media-button events to whichever process most recently played audio; `TextToSpeech` audio plays inside the engine's own process, not this app's, so between utterances the keys can drift to whatever music app played last.
+		description=Builds a 200ms silent mono `AudioTrack` with the same audio attributes as speech and plays it from this app's own process immediately after a play state change, so this app is again "the process that most recently played audio" without the reader hearing anything.
+		build=`playSilence()`, called from `updateTtsMediaSession` (7.1) whenever `playing` is true.
+		evidence=No automated test exercises this; the user's on-device confirmation that headset keys keep working across a pause/resume is the evidence for this leaf specifically.
+		code=|
+			- [`playSilence`](../../../../Android/app/src/main/java/com/codexa/reader/MainActivity.kt){change=5f0d08e..b6b8933 show=lines lines=337:355}
+	n7_4: 7.4 Route a media-session callback back into the page <leaf>
+		why=The `MediaSession.Callback` (7.1) runs on the native side; the controller that owns play/pause/stop/step (4) lives in the page.
+		description=Builds a small JS call naming the action and runs it through `WebView.evaluateJavascript`, mirroring `sendTtsEvent` (2.5) for utterance events.
+		build=`sendTtsMedia(action)` calls `window.__codexaTtsMedia(action)` in the page, guarded by `&&` so a page without the handler does nothing.
+		evidence=`window.__codexaTtsMedia` (7.5) is exactly the handler this call reaches.
+		code=|
+			- [`sendTtsMedia`](../../../../Android/app/src/main/java/com/codexa/reader/MainActivity.kt){change=5f0d08e..b6b8933 show=lines lines=378:381}
+	n7_5: 7.5 Dispatch a page-side media action to the controller <leaf>
+		why=Each of the five media actions a headset key can send needs to reach the one controller method that already implements it, without a second play/pause/stop state machine.
+		description=Maps `'play'` to `start(cursor)` (only while not already playing), `'pause'` to `pause()` (only while playing), `'stop'` to `stop()`, `'next'` to `nextSentence()` (4.6), and `'prev'` to `prevSentence()` (4.6).
+		build=`window.__codexaTtsMedia = (action) => {...}` is set once inside `createTts` (4) and reused by every call from `sendTtsMedia` (7.4).
+		evidence=A headset's single play/pause button sends `'play'` or `'pause'` depending on Android's own toggle logic; either one lands on the exact button-click or bar-click behaviour already proven for `toggle()` (4.1).
+		code=|
+			- [`window.__codexaTtsMedia`](../../../../public/js/tts.js){change=5f0d08e..b6b8933 show=symbol symbol=createTts kind=Function focus="match[window.__codexaTtsMedia = (action) => {]" context=6}
+	n7_6: 7.6 Release the media session and audio focus on destroy <leaf>
+		why=A `MediaSession` and an audio-focus request both hold a system resource that leaks if the activity is destroyed while either is held.
+		description=Abandons any outstanding focus request and releases the media session before the existing WebView teardown runs.
+		build=Two calls added ahead of the existing `webView.destroy()` in `onDestroy()`.
+		evidence=No test exercises `onDestroy`; the user's own manual app-close check is the evidence for this leaf, same as 2.6.
+		code=|
+			- [`onDestroy` media-session teardown](../../../../Android/app/src/main/java/com/codexa/reader/MainActivity.kt){change=5f0d08e..b6b8933 show=lines lines=441:443}

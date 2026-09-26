@@ -3,16 +3,16 @@ user: Reader
 	code=Not a code unit; the human actor.
 reader-ui: reader.js
 	description=The header button, its click handler, and the `cx-relocated` event that a page turn fires.
-	code=[`reader.js` TTS wiring](../../../../public/js/reader.js){show=lines lines=6725:6737}
+	code=[`reader.js` TTS wiring](../../../../public/js/reader.js){show=lines lines=6719:6734}
 tts-controller: createTts (tts.js)
-	description=The play/stop state machine and the EPUB block walk (4.1, 4.3).
+	description=The play/pause/stop session state machine, its cursor, and the EPUB block walk (4.1, 4.3).
 	code=[`createTts`](../../../../public/js/tts.js){show=symbol symbol=createTts kind=Function}
 android-engine: androidEngine (tts.js)
 	description=The Promise-based wrapper over the Android bridge (3.1).
 	code=[`androidEngine`](../../../../public/js/tts.js){show=symbol symbol=androidEngine kind=Function}
 android-bridge: JsBridge (MainActivity.kt)
 	description=The `@JavascriptInterface` methods and native speak/init logic (2.2, 2.3).
-	code=[`ttsSpeak`](../../../../Android/app/src/main/java/com/codexa/reader/MainActivity.kt){show=lines lines=209:213}
+	code=[`ttsSpeak`](../../../../Android/app/src/main/java/com/codexa/reader/MainActivity.kt){show=lines lines=218:221}
 android-tts: TextToSpeech (Android platform)
 	description=The Android platform's own speech engine.
 	code=Platform API; no Codexa source.
@@ -22,3 +22,9 @@ web-engine: webEngine (tts.js)
 web-speech: speechSynthesis (browser/WKWebView)
 	description=The browser's or iOS WKWebView's own speech engine.
 	code=Platform API; no Codexa source.
+headset: Bluetooth/wired headset
+	description=The physical play/pause/stop/skip buttons on a connected Bluetooth or wired headset.
+	code=Not a code unit; the hardware actor.
+media-session: MediaSession (MainActivity.kt)
+	description=The Android media session whose playback state mirrors the read-aloud session and whose callback receives headset key events (7.1).
+	code=[`updateTtsMediaSession`](../../../../Android/app/src/main/java/com/codexa/reader/MainActivity.kt){show=lines lines=299:331}
