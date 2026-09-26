@@ -1,0 +1,11 @@
+@node_attrs
+kind:
+  composition: s1 s2 s3 s4 s5 s6
+  leaf: n1_1 n1_2 n1_3 n1_4 n1_5 n1_6 n1_7 n2_1 n2_2 n2_3 n2_4 n2_5 n2_6 n3_1 n3_2 n3_3 n4_1 n4_2 n4_3 n4_4 n4_5 n4_6 n5_1 n5_2 n5_3 n5_4 n5_5 n5_6 n5_7 n5_8 n5_9 n6_1 n6_2
+module:
+  text-and-parsing-helpers: n1_1 n1_2 n1_3 n1_4 n1_5 n1_6 n1_7
+  android-native-tts-bridge: n2_1 n2_2 n2_3 n2_4 n2_5 n2_6
+  speech-engine-adapters: n3_1 n3_2 n3_3
+  reader-tts-controller: n4_1 n4_2 n4_3 n4_4 n4_5 n4_6
+  reader-ui-integration: n5_1 n5_2 n5_3 n5_4 n5_5 n5_6 n5_7 n5_8 n5_9
+  offline-delivery: n6_1 n6_2

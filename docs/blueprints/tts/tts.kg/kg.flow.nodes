@@ -1,0 +1,24 @@
+user: Reader
+	description=The person reading the book, tapping the read-aloud button and later turning a page.
+	code=Not a code unit; the human actor.
+reader-ui: reader.js
+	description=The header button, its click handler, and the `cx-relocated` event that a page turn fires.
+	code=[`reader.js` TTS wiring](../../../../public/js/reader.js){show=lines lines=6725:6737}
+tts-controller: createTts (tts.js)
+	description=The play/stop state machine and the EPUB block walk (4.1, 4.3).
+	code=[`createTts`](../../../../public/js/tts.js){show=symbol symbol=createTts kind=Function}
+android-engine: androidEngine (tts.js)
+	description=The Promise-based wrapper over the Android bridge (3.1).
+	code=[`androidEngine`](../../../../public/js/tts.js){show=symbol symbol=androidEngine kind=Function}
+android-bridge: JsBridge (MainActivity.kt)
+	description=The `@JavascriptInterface` methods and native speak/init logic (2.2, 2.3).
+	code=[`ttsSpeak`](../../../../Android/app/src/main/java/com/codexa/reader/MainActivity.kt){show=lines lines=209:213}
+android-tts: TextToSpeech (Android platform)
+	description=The Android platform's own speech engine.
+	code=Platform API; no Codexa source.
+web-engine: webEngine (tts.js)
+	description=The Promise-based wrapper over `speechSynthesis` (3.2).
+	code=[`webEngine`](../../../../public/js/tts.js){show=symbol symbol=webEngine kind=Function}
+web-speech: speechSynthesis (browser/WKWebView)
+	description=The browser's or iOS WKWebView's own speech engine.
+	code=Platform API; no Codexa source.

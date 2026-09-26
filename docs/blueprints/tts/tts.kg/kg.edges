@@ -1,0 +1,72 @@
+e1: n1_2 -> n4_3 supports
+	code=[`collectBlocks` called from `playEpub`](../../../../public/js/tts.js){change=worktree show=symbol symbol=createTts kind=Function focus="match[blocks = collectBlocks(doc)]" context=2}
+e2: n1_3 -> n4_3 supports
+	code=[`blockIndexFrom` called from `playEpub`](../../../../public/js/tts.js){change=worktree show=symbol symbol=createTts kind=Function focus="match[blockIndexFrom(blocks, start?.node || reader._visibleAnchorEl]" context=2}
+e3: n1_1 -> n4_3 supports
+	code=[`splitSentences` called from `playEpub`](../../../../public/js/tts.js){change=worktree show=symbol symbol=createTts kind=Function focus="match[for (const s of splitSentences(el.textContent).slice(skip))]" context=2}
+e4: n1_1 -> n4_4 supports
+	code=[`splitSentences` called from `playPdf`](../../../../public/js/tts.js){change=worktree show=symbol symbol=createTts kind=Function focus="match[const sentences = splitSentences(pdfItemsToText]" context=2}
+e5: n1_4 -> n4_4 supports
+	code=[`pdfItemsToText` called from `playPdf`](../../../../public/js/tts.js){change=worktree show=symbol symbol=createTts kind=Function focus="match[const sentences = splitSentences(pdfItemsToText]" context=2}
+e6: n2_1 -> n2_2 supports
+	code=[TTS_SERVICE query backs the bridge](../../../../Android/app/src/main/AndroidManifest.xml){change=worktree show=lines lines=7:12}
+e7: n2_2 -> n2_3 supports
+	code=[`ttsSpeak` calls `speakTts`](../../../../Android/app/src/main/java/com/codexa/reader/MainActivity.kt){change=worktree show=lines lines=211:212}
+e8: n2_3 -> n2_4 supports
+	code=[init callback runs `onTtsInit`](../../../../Android/app/src/main/java/com/codexa/reader/MainActivity.kt){change=worktree show=lines lines=241:243}
+e9: n2_4 -> n2_5 supports
+	code=[progress listener calls `sendTtsEvent`](../../../../Android/app/src/main/java/com/codexa/reader/MainActivity.kt){change=worktree show=lines lines=258:262}
+e10: n2_4 -> n2_6 supports
+	code=[`onDestroy` tears down the engine this init created](../../../../Android/app/src/main/java/com/codexa/reader/MainActivity.kt){change=worktree show=lines lines=322:324}
+e11: n2_2 -> n3_1 backs
+	code=[`androidEngine.speak` calls the bridge](../../../../public/js/tts.js){change=worktree show=symbol symbol=androidEngine kind=Function focus="match[bridge.ttsSpeak(id, text, rate, lang)]" context=2}
+e12: n2_5 -> n3_1 backs
+	code=[`window.__codexaTtsEvent` resolves the pending promise](../../../../public/js/tts.js){change=worktree show=symbol symbol=androidEngine kind=Function focus="match[win.__codexaTtsEvent = (id, ev) => {]" context=4}
+e13: n3_1 -> n3_3 supports
+	code=[`pickEngine` selects `androidEngine`](../../../../public/js/tts.js){change=worktree show=symbol symbol=pickEngine kind=Function focus="match[return androidEngine(win, win.AndroidCodexa)]" context=1}
+e14: n3_2 -> n3_3 supports
+	code=[`pickEngine` selects `webEngine`](../../../../public/js/tts.js){change=worktree show=symbol symbol=pickEngine kind=Function focus="match[return webEngine(win.speechSynthesis)]" context=1}
+e15: n3_3 -> n4_1 supports
+	code=[controller holds the chosen engine](../../../../public/js/tts.js){change=worktree show=symbol symbol=createTts kind=Function focus="match[const engine = pickEngine();]" context=1}
+e16: n4_1 -> n4_2 supports
+	code=[`stop()`/`run` back the relocation guard](../../../../public/js/tts.js){change=worktree show=symbol symbol=createTts kind=Function focus="match[if (!playing || selfTurn || Date.now() < selfTurnUntil) return;]" context=3}
+e17: n4_1 -> n4_3 supports
+	code=[`play()` drives `playEpub`](../../../../public/js/tts.js){change=worktree show=symbol symbol=createTts kind=Function focus="match[else if (!reader._isCbz) await playEpub(myRun, start);]" context=1}
+e18: n4_1 -> n4_4 supports
+	code=[`play()` drives `playPdf`](../../../../public/js/tts.js){change=worktree show=symbol symbol=createTts kind=Function focus="match[if (reader._isPdf) await playPdf(myRun);]" context=1}
+e19: n4_1 -> n5_2 backs
+	code=[button visibility reads `_tts.available`](../../../../public/js/reader.js){change=worktree show=symbol symbol=applyHeaderBtnVisibility kind=Function focus="match[!!_tts?.available]" context=1}
+e20: n4_1 -> n5_4 backs
+	code=[click handler calls `toggle()`](../../../../public/js/reader.js){change=worktree show=lines lines=8096:8096}
+e21: n4_1 -> n5_5 backs
+	code=[lifecycle stop points call `stop()`](../../../../public/js/reader.js){change=worktree show=symbol symbol=returnToLibrary kind=Function focus="match[_tts?.stop();]" context=1}
+e22: n4_2 -> n5_6 backs
+	code=[relocation handler calls the guard](../../../../public/js/reader.js){change=worktree show=symbol symbol=_cxRelocatedHandler kind=Function focus="match[_tts?.onRelocated();]" context=1}
+e23: n5_1 -> n5_2 supports
+	code=[button label reads `reader.btn_tts`](../../../../public/reader.html){change=worktree show=lines lines=234:234}
+e24: n5_1 -> n5_3 supports
+	code=[settings labels read the locale keys](../../../../public/reader.html){change=worktree show=lines lines=598:607}
+e25: n5_1 -> n5_4 supports
+	code=[`onError`/`onNoText` toast the locale keys](../../../../public/js/reader.js){change=worktree show=lines lines=6733:6734}
+e26: n1_1 -> n6_1 supports
+	code=[`tts.js` is the file 6.1 precaches](../../../../public/sw.js){change=worktree show=lines lines=34:34}
+e27: n6_1 -> n6_2 supports
+	code=[version bump reaches clients on the existing cache](../../../../public/sw.js){change=worktree show=lines lines=4:4}
+e28: n1_5 -> n4_5 supports
+	code=[`sentenceIndexAt` called from `playEpub`'s start skip](../../../../public/js/tts.js){change=worktree show=symbol symbol=createTts kind=Function focus="match[skip = sentenceIndexAt(blocks]" context=1}
+e29: n1_6 -> n4_5 supports
+	code=[`textOffsetIn` called from `playEpub`'s start skip](../../../../public/js/tts.js){change=worktree show=symbol symbol=createTts kind=Function focus="match[textOffsetIn(blocks]" context=1}
+e30: n1_7 -> n4_6 supports
+	code=[`caretAt` called from `playFromPoint`](../../../../public/js/tts.js){change=worktree show=symbol symbol=createTts kind=Function focus="match[const pt = caretAt(doc, x, y);]" context=1}
+e31: n4_1 -> n4_5 supports
+	code=[`playFrom` calls `stop()` then `play()`](../../../../public/js/tts.js){change=worktree show=symbol symbol=createTts kind=Function focus="match[playFrom(node, offset) {]" context=4}
+e32: n4_5 -> n4_6 supports
+	code=[`playFromPoint` delegates to `playFrom`](../../../../public/js/tts.js){change=worktree show=symbol symbol=createTts kind=Function focus="match[this.playFrom(pt.node, pt.offset);]" context=1}
+e33: n5_7 -> n5_8 supports
+	code=[click handler reads `_pendingAnnotation.start`](../../../../public/js/reader.js){change=worktree show=lines lines=8087:8087}
+e34: n5_1 -> n5_8 supports
+	code=[button label reads `reader.annotation_tts_here`](../../../../public/reader.html){change=worktree show=lines lines=1259:1259}
+e35: n4_5 -> n5_8 backs
+	code=[click handler calls `_tts?.playFrom`](../../../../public/js/reader.js){change=worktree show=lines lines=8091:8091}
+e36: n4_6 -> n5_9 backs
+	code=[touch handler calls `_tts.playFromPoint`](../../../../public/js/reader.js){change=worktree show=lines lines=7382:7383}

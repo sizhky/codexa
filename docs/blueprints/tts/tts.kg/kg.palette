@@ -1,0 +1,20 @@
+{
+  "node_color_palettes": {
+    "kind": {
+      "composition": "#94a3b8",
+      "leaf": "#2563eb"
+    }
+  },
+  "edge_color_palettes": {
+    "relation": {
+      "supports": "#2563eb",
+      "backs": "#f97316",
+      "enforces": "#dc2626"
+    },
+    "role": {
+      "call": "#2563eb",
+      "reply": "#94a3b8",
+      "standing": "#6b7280"
+    }
+  }
+}

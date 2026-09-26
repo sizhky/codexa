@@ -14,6 +14,8 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
+import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
 import android.view.KeyEvent
 import android.view.View
 import android.view.WindowManager
@@ -39,6 +41,8 @@ import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.Locale
+import org.json.JSONObject
 
 class MainActivity : AppCompatActivity() {
 
@@ -201,6 +205,76 @@ class MainActivity : AppCompatActivity() {
         fun oidcFlowStarting() {
             oidcFlowActive = true
         }
+
+        /** Speak one utterance; the result arrives in window.__codexaTtsEvent(id, event). */
+        @JavascriptInterface
+        fun ttsSpeak(id: String, text: String, rate: Float, lang: String) {
+            runOnUiThread { speakTts(id, text, rate, lang) }
+        }
+
+        /** Volume 0..1 for the following utterances. */
+        @JavascriptInterface
+        fun ttsSetVolume(volume: Float) {
+            runOnUiThread { ttsVolume = volume.coerceIn(0f, 1f) }
+        }
+
+        @JavascriptInterface
+        fun ttsStop() {
+            runOnUiThread { ttsPending = null; tts?.stop() }
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Text to speech — Android WebView has no window.speechSynthesis
+    // -------------------------------------------------------------------------
+
+    private var tts: TextToSpeech? = null
+    private var ttsReady = false
+    private var ttsVolume = 1f
+    private data class TtsUtterance(val id: String, val text: String, val rate: Float, val lang: String)
+    private var ttsPending: TtsUtterance? = null
+
+    private fun speakTts(id: String, text: String, rate: Float, lang: String) {
+        val engine = tts
+        if (engine != null && ttsReady) {
+            if (lang.isNotBlank()) engine.language = Locale.forLanguageTag(lang)
+            engine.setSpeechRate(rate)
+            val params = Bundle().apply { putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, ttsVolume) }
+            engine.speak(text, TextToSpeech.QUEUE_FLUSH, params, id)
+            return
+        }
+        ttsPending?.let { sendTtsEvent(it.id, "stopped") }
+        ttsPending = TtsUtterance(id, text, rate, lang)
+        if (engine != null) return
+        tts = TextToSpeech(this) { status ->
+            runOnUiThread { onTtsInit(status) }
+        }
+    }
+
+    private fun onTtsInit(status: Int) {
+        val pending = ttsPending
+        ttsPending = null
+        if (status != TextToSpeech.SUCCESS) {
+            tts?.shutdown()
+            tts = null
+            pending?.let { sendTtsEvent(it.id, "error") }
+            return
+        }
+        ttsReady = true
+        tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+            override fun onStart(utteranceId: String) {}
+            override fun onDone(utteranceId: String) = sendTtsEvent(utteranceId, "done")
+            @Deprecated("Deprecated in Java")
+            override fun onError(utteranceId: String) = sendTtsEvent(utteranceId, "error")
+            override fun onStop(utteranceId: String, interrupted: Boolean) =
+                sendTtsEvent(utteranceId, "stopped")
+        })
+        pending?.let { speakTts(it.id, it.text, it.rate, it.lang) }
+    }
+
+    private fun sendTtsEvent(id: String, event: String) {
+        val js = "window.__codexaTtsEvent&&window.__codexaTtsEvent(${JSONObject.quote(id)},'$event')"
+        runOnUiThread { webView.evaluateJavascript(js, null) }
     }
 
     // -------------------------------------------------------------------------
@@ -254,6 +328,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        tts?.shutdown()
+        tts = null
         // Detach and destroy the WebView to release its resources and avoid leaks.
         (webView.parent as? android.view.ViewGroup)?.removeView(webView)
         webView.destroy()

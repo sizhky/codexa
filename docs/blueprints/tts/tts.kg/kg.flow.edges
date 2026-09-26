@@ -1,0 +1,131 @@
+e1: user -> reader-ui invokes
+	role=call
+	message=sync
+	note=1 · tap Read aloud
+	description=The reader taps `btn-tts` in the header.
+	code=[`btn-tts` click handler](../../../../public/js/reader.js){show=lines lines=8096:8096}
+e2: reader-ui -> tts-controller invokes
+	role=call
+	message=async
+	note=2 · toggle() → play()
+	description=The click handler calls `toggle()`, which calls `play()` since nothing is playing yet.
+	code=[`toggle`/`play`](../../../../public/js/tts.js){show=symbol symbol=createTts kind=Function focus="match[playing ? stop() : play();]" context=1}
+e3: tts-controller -> tts-controller checks
+	role=standing
+	note=engine already chosen (3.3)
+	description=`pickEngine()` ran once when the controller was created, not on every play; `play()` reuses that choice.
+	code=[engine captured at creation](../../../../public/js/tts.js){show=symbol symbol=createTts kind=Function focus="match[const engine = pickEngine();]" context=1}
+e4: tts-controller -> tts-controller checks
+	role=standing
+	note=walks blocks from the visible anchor (1.2, 1.3, 4.3)
+	description=`playEpub` finds the first block at or after the reader's current on-screen position, not the top of the chapter.
+	code=[`playEpub` start position](../../../../public/js/tts.js){show=symbol symbol=createTts kind=Function focus="match[blockIndexFrom(blocks, start?.node || reader._visibleAnchorEl]" context=2}
+e5: tts-controller -> android-engine invokes
+	role=call
+	message=sync
+	pair=p-speak-android
+	fragment=loop:each block/alt:engine
+	operand=[window.AndroidCodexa.ttsSpeak exists]
+	operand_note=Android WebView has no speechSynthesis, so the controller reaches the native TextToSpeech engine through the JS bridge (2, 3.1).
+	note=5 · speak(text, {rate, lang})
+	description=`say()` calls the chosen engine's `speak`.
+	code=[`say` calls `engine.speak`](../../../../public/js/tts.js){show=symbol symbol=createTts kind=Function focus="match[const say = (text) => engine.speak(text,]" context=1}
+e6: android-engine -> android-bridge invokes
+	role=call
+	message=async
+	fragment=loop:each block/alt:engine
+	operand=[window.AndroidCodexa.ttsSpeak exists]
+	note=6 · ttsSpeak(id, text, rate, lang)
+	description=`androidEngine.speak` records the id in its `pending` map, then calls the bridge.
+	code=[`bridge.ttsSpeak` call](../../../../public/js/tts.js){show=symbol symbol=androidEngine kind=Function focus="match[bridge.ttsSpeak(id, text, rate, lang)]" context=1}
+e7: android-bridge -> android-tts invokes
+	role=call
+	message=sync
+	pair=p-native-speak
+	fragment=loop:each block/alt:engine
+	operand=[window.AndroidCodexa.ttsSpeak exists]
+	note=7 · speak(text, QUEUE_FLUSH, id)
+	description=`speakTts` sets the rate and language, then hands the utterance to `TextToSpeech`.
+	code=[`engine.speak` call](../../../../Android/app/src/main/java/com/codexa/reader/MainActivity.kt){show=lines lines=232:235}
+e8: android-tts -> android-bridge replies
+	role=reply
+	message=reply
+	pair=p-native-speak
+	fragment=loop:each block/alt:engine
+	operand=[window.AndroidCodexa.ttsSpeak exists]
+	note=8 · onDone(utteranceId)
+	description=The `UtteranceProgressListener` reports completion.
+	code=[`onDone`](../../../../Android/app/src/main/java/com/codexa/reader/MainActivity.kt){show=lines lines=258:258}
+e9: android-bridge -> android-engine invokes
+	role=call
+	message=async
+	fragment=loop:each block/alt:engine
+	operand=[window.AndroidCodexa.ttsSpeak exists]
+	note=9 · __codexaTtsEvent(id, 'done')
+	description=`sendTtsEvent` runs a small script through `evaluateJavascript`, with no return value expected.
+	code=[`sendTtsEvent`](../../../../Android/app/src/main/java/com/codexa/reader/MainActivity.kt){show=lines lines=267:270}
+e10: android-engine -> tts-controller replies
+	role=reply
+	message=reply
+	pair=p-speak-android
+	fragment=loop:each block/alt:engine
+	operand=[window.AndroidCodexa.ttsSpeak exists]
+	note=10 · resolve('done')
+	description=`window.__codexaTtsEvent` looks up the pending promise by id and resolves it, which is what `say()` (and `play()`, 4.1) was awaiting.
+	code=[promise resolution](../../../../public/js/tts.js){show=symbol symbol=androidEngine kind=Function focus="match[win.__codexaTtsEvent = (id, ev) => {]" context=4}
+e11: tts-controller -> web-engine invokes
+	role=call
+	message=sync
+	pair=p-speak-web
+	fragment=loop:each block/alt:engine
+	operand=[else: window.speechSynthesis]
+	operand_note=iOS WKWebView and desktop/mobile browsers speak directly through the Web Speech API; no native bridge is involved.
+	note=5 · speak(text, {rate, lang})
+	description=`say()` calls the chosen engine's `speak`; this is the other branch of the same call site as e5.
+	code=[`say` calls `engine.speak`](../../../../public/js/tts.js){show=symbol symbol=createTts kind=Function focus="match[const say = (text) => engine.speak(text,]" context=1}
+e12: web-engine -> web-speech invokes
+	role=call
+	message=sync
+	pair=p-speak-native
+	fragment=loop:each block/alt:engine
+	operand=[else: window.speechSynthesis]
+	note=6 · speak(utterance)
+	description=`webEngine.speak` builds one `SpeechSynthesisUtterance` and hands it to `speechSynthesis`.
+	code=[`synth.speak(u)`](../../../../public/js/tts.js){show=symbol symbol=webEngine kind=Function focus="match[synth.speak(u);]" context=1}
+e13: web-speech -> web-engine replies
+	role=reply
+	message=reply
+	pair=p-speak-native
+	fragment=loop:each block/alt:engine
+	operand=[else: window.speechSynthesis]
+	note=7 · onend()
+	description=The utterance's `onend` fires when speech finishes.
+	code=[`u.onend`](../../../../public/js/tts.js){show=symbol symbol=webEngine kind=Function focus="match[resolve('done');]" context=1}
+e14: web-engine -> tts-controller replies
+	role=reply
+	message=reply
+	pair=p-speak-web
+	fragment=loop:each block/alt:engine
+	operand=[else: window.speechSynthesis]
+	note=10 · resolve('done')
+	description=The same `onend` callback resolves `speak()`'s promise, which `play()` (4.1) was awaiting.
+	code=[`resolve('done')`](../../../../public/js/tts.js){show=symbol symbol=webEngine kind=Function focus="match[resolve('done');]" context=1}
+e15: tts-controller -> reader-ui invokes
+	role=call
+	message=sync
+	pair=p-turn
+	fragment=loop:each block/opt:page turn
+	operand=[next block is off screen]
+	operand_note=showBlock (4.2) turns pages under a selfTurn guard until the next block is visible, or gives up after 50 turns or a turn that does not move the reader.
+	note=11 · reader.next()
+	description=The controller asks the reader to turn one page to bring the next block into view.
+	code=[`showBlock` calls `reader.next()`](../../../../public/js/tts.js){show=symbol symbol=createTts kind=Function focus="match[await turn(() => reader.next());]" context=1}
+e16: reader-ui -> tts-controller replies
+	role=reply
+	message=reply
+	pair=p-turn
+	fragment=loop:each block/opt:page turn
+	operand=[next block is off screen]
+	note=12 · cx-relocated (ignored: selfTurn)
+	description=The page turn fires `cx-relocated`, which calls `onRelocated` (4.2); the `selfTurn` flag this turn set makes it a no-op, so reading is not restarted by its own page turn.
+	code=[`onRelocated` guard](../../../../public/js/tts.js){show=symbol symbol=createTts kind=Function focus="match[if (!playing || selfTurn || Date.now() < selfTurnUntil) return;]" context=3}

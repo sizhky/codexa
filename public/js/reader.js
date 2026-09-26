@@ -7,6 +7,7 @@ import { log, warn } from './logger.js';
 import { stripImageWhiteBackgrounds } from './img-bg-fix.js';
 import { createComicViewer } from './comic-viewer.js';
 import { renderPdfCoverBlob, uploadPdfCover } from './pdf-cover.js';
+import { createTts } from './tts.js';
 
 const READER_BUILD = 'br-v107-kosync-dialog-arrow';
 const _i18nReady = initI18n();
@@ -320,6 +321,9 @@ const DEFAULT_PREFS = {
   headerBtnPercentage:   true,  // show percentage/jump button in header
   headerBtnSync:         true,  // show manual sync button in header
   headerBtnSleepTimer:   true,  // show sleep timer button in header
+  headerBtnTts:          true,  // show read-aloud button in header
+  ttsRate:               1,     // read-aloud speed, 0.5-2 (1 = engine default)
+  ttsVolume:             100,   // read-aloud volume, 0-100
   headerBtnFullscreen:   true,  // show fullscreen button in header
   bookmarkBadge:         true,  // show count badge on bookmark button
   annotationBadge:       true,  // show count badge on annotations button
@@ -335,6 +339,7 @@ const DEFAULT_PREFS = {
 
 // ── State ─────────────────────────────────────────────────────────────────────
 let _cxReader       = null;  // CXReader instance (the reader engine)
+let _tts            = null;  // read-aloud controller over _cxReader (tts.js)
 let _epubArrayBuffer = null; // raw EPUB bytes, set before startRendition()
 let _cxKbdIframe    = null;  // iframe that currently has keyboard handlers attached
 let _cxDictIframe   = null;  // iframe that currently has dictionary handlers attached
@@ -1807,6 +1812,7 @@ function cancelSleepTimer() {
 
 function _fireSleepTimer(action) {
   cancelSleepTimer();
+  _tts?.stop();
   if (action === 'dim') {
     const overlay = document.getElementById('sleep-dim-overlay');
     if (overlay) {
@@ -2550,7 +2556,9 @@ function findTextRangeInPage(doc, text) {
 }
 
 function showAnnotationToolbar(cfiRange, text) {
-  _pendingAnnotation = { cfiRange, text };
+  const sel = _cxReader?.iframe?.contentWindow?.getSelection?.();
+  const r = sel?.rangeCount ? sel.getRangeAt(0) : null;
+  _pendingAnnotation = { cfiRange, text, start: r ? { node: r.startContainer, offset: r.startOffset } : null };
   updateDictButtonVisibility();
   document.getElementById('annot-toolbar')?.classList.add('open');
   document.getElementById('annot-backdrop')?.classList.add('open');
@@ -3195,6 +3203,8 @@ function applyHeaderBtnVisibility() {
   set('btn-jump-pct',     prefs.headerBtnPercentage);
   set('btn-sync',         prefs.headerBtnSync);
   set('btn-sleep-timer',  prefs.headerBtnSleepTimer);
+  set('btn-tts',          prefs.headerBtnTts && !!_tts?.available && !_cxReader?._isCbz);
+  set('annot-btn-tts',    !!_tts?.available);
   set('btn-fullscreen',   prefs.headerBtnFullscreen);
 }
 
@@ -3972,6 +3982,7 @@ function hasOpenPanel() {
 }
 
 async function returnToLibrary() {
+  _tts?.stop();
   // Show closing overlay immediately so the user sees feedback during async save
   loadingMsg.textContent = t('reader.closing');
   loadingOverlay.classList.remove('hidden');
@@ -4795,6 +4806,7 @@ function syncSettingsUi() {
   const hbp = document.getElementById('header-btn-percentage-toggle');
   const hbsy = document.getElementById('header-btn-sync-toggle');
   const hbst = document.getElementById('header-btn-sleep-timer-toggle');
+  const hbtt = document.getElementById('header-btn-tts-toggle');
   const hbf = document.getElementById('header-btn-fullscreen-toggle');
   const hbbb = document.getElementById('header-btn-bookmark-badge-toggle');
   const hbab = document.getElementById('header-btn-annotation-badge-toggle');
@@ -4803,6 +4815,7 @@ function syncSettingsUi() {
   if (hbp)  hbp.checked  = prefs.headerBtnPercentage;
   if (hbsy) hbsy.checked = prefs.headerBtnSync;
   if (hbst) hbst.checked = prefs.headerBtnSleepTimer;
+  if (hbtt) hbtt.checked = prefs.headerBtnTts;
   if (hbf)  hbf.checked  = prefs.headerBtnFullscreen;
   if (hbbb) hbbb.checked = prefs.bookmarkBadge;
   if (hbab) hbab.checked = prefs.annotationBadge;
@@ -5596,6 +5609,7 @@ function initSettingsUi() {
     ['header-btn-percentage-toggle',  'headerBtnPercentage'],
     ['header-btn-sync-toggle',        'headerBtnSync'],
     ['header-btn-sleep-timer-toggle', 'headerBtnSleepTimer'],
+    ['header-btn-tts-toggle',         'headerBtnTts'],
     ['header-btn-fullscreen-toggle',  'headerBtnFullscreen'],
   ].forEach(([id, key]) => {
     document.getElementById(id)?.addEventListener('change', (e) => {
@@ -6247,6 +6261,7 @@ function _cxSyncLayout() {
 }
 
 function _cxRelocatedHandler(e) {
+  _tts?.onRelocated();
   if (pendingNavDirection) _pageEnter(pendingNavDirection);
   pendingNavDirection = null;
   // Comic pages always render at full-bleed fit-to-screen zoom on arrival — reset any
@@ -6681,6 +6696,7 @@ async function startCXRendition(displayCfi = null) {
   viewer.removeEventListener('cx-relocated', _cxRelocatedHandler);
 
   // Destroy any previous CXReader instance before creating a new one
+  _tts?.stop(); _tts = null;
   if (_cxReader) { try { _cxReader.destroy(); } catch {} _cxReader = null; }
 
   viewer.addEventListener('cx-relocated', _cxRelocatedHandler);
@@ -6700,6 +6716,22 @@ async function startCXRendition(displayCfi = null) {
     // Bump this alongside reader.html's ?v= whenever cxreader/index.js changes.
     const { CXReader } = await import('./cxreader/index.js?v=br-v121');
     _cxReader = new CXReader();
+    _tts = createTts(_cxReader, {
+      getRate: () => prefs.ttsRate ?? 1,
+      getVolume: () => (prefs.ttsVolume ?? 100) / 100,
+      getLang: () => _cxReader?._book?.metadata?.language || '',
+      onState: ({ active, playing }) => {
+        const btn = document.getElementById('btn-tts');
+        btn?.classList.toggle('tts-playing', playing);
+        btn?.setAttribute('aria-pressed', String(playing));
+        const bar = document.getElementById('tts-bar');
+        bar?.classList.toggle('open', active);
+        bar?.classList.toggle('playing', playing);
+        if (active) syncTtsBar();
+      },
+      onError: () => toast.error(t('reader.tts_error')),
+      onNoText: () => toast.info(t('reader.tts_no_text')),
+    });
     _cxReader.setPdfPaperInversion(prefs.pdfPaperInversion);
     _cxReader.onBeforePaginate = (iframe) => { _cxApplyIframeInset(iframe); _cxApplyHooks(iframe); };
 
@@ -7340,6 +7372,12 @@ function attachIframeTouchNav(view) {
         if (e.cancelable) e.preventDefault();
         if (nav === 'prev') goPrev(); else goNext();
         if (prefs.autoHideHeader && readerLayout.classList.contains('header-peek')) forceHideAutoHeader();
+        return;
+      }
+      // While read-aloud plays, a tap on text jumps reading to that sentence.
+      if (_tts?.active && !hasOpenPanel() && !document.getElementById('annot-toolbar')?.classList.contains('open')
+          && _tts.playFromPoint(win.document, e.changedTouches[0].clientX, e.changedTouches[0].clientY)) {
+        if (e.cancelable) e.preventDefault();
         return;
       }
       // Vertical tap zones (one-handed navigation). A *different* kind of overlay (settings/
@@ -8040,6 +8078,15 @@ document.getElementById('annot-btn-copy')?.addEventListener('click', async () =>
 });
 
 // Search selection in book
+document.getElementById('annot-btn-tts')?.addEventListener('click', () => {
+  const doc = _cxReader?.iframe?.contentDocument;
+  const start = _pendingAnnotation?.start?.node?.isConnected ? _pendingAnnotation.start
+    : (() => { const r = doc && findTextRangeInPage(doc, (_pendingAnnotation?.text || '').trim());
+               return r ? { node: r.startContainer, offset: r.startOffset } : null; })();
+  closeAnnotationToolbar();
+  if (start) _tts?.playFrom(start.node, start.offset);
+});
+
 document.getElementById('annot-btn-search-book')?.addEventListener('click', () => {
   const text = (_pendingAnnotation?.text || '').trim();
   closeAnnotationToolbar();
@@ -8058,6 +8105,45 @@ document.querySelectorAll('.annot-note-color-btn').forEach(btn => {
       b.classList.toggle('active', b.dataset.color === _pendingNoteColor));
   });
 });
+
+// Read-aloud button and bar
+document.getElementById('btn-tts')?.addEventListener('click', () => _tts?.toggle());
+
+const TTS_PREF_RANGE = { ttsRate: [0.5, 2], ttsVolume: [0, 100] };
+
+function syncTtsBar() {
+  const rate = prefs.ttsRate ?? 1, vol = prefs.ttsVolume ?? 100;
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
+  const txt = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  set('tts-rate-slider', rate);   txt('tts-rate-value', rate.toFixed(1) + '×');
+  set('tts-volume-slider', vol);  txt('tts-volume-value', String(vol));
+}
+
+function setTtsPref(key, value) {
+  const [lo, hi] = TTS_PREF_RANGE[key];
+  prefs[key] = Math.round(Math.min(hi, Math.max(lo, value)) * 10) / 10;
+  syncTtsBar();
+  persistPrefs();
+}
+
+[['tts-rate-slider', 'ttsRate'], ['tts-volume-slider', 'ttsVolume']].forEach(([id, key]) => {
+  const el = document.getElementById(id);
+  el?.addEventListener('input', () => setTtsPref(key, parseFloat(el.value)));
+  el?.addEventListener('change', () => _tts?.refresh());
+});
+document.querySelectorAll('[data-tts-step]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const [key, delta] = btn.dataset.ttsStep.split(':');
+    setTtsPref(key, (prefs[key] ?? (key === 'ttsRate' ? 1 : 100)) + parseFloat(delta));
+    _tts?.refresh();
+  });
+});
+document.getElementById('tts-btn-stop')?.addEventListener('click', () => _tts?.stop());
+document.getElementById('tts-btn-prev-page')?.addEventListener('click', () => _tts?.prevPage());
+document.getElementById('tts-btn-prev-sentence')?.addEventListener('click', () => _tts?.prevSentence());
+document.getElementById('tts-btn-play')?.addEventListener('click', () => _tts?.toggle());
+document.getElementById('tts-btn-next-sentence')?.addEventListener('click', () => _tts?.nextSentence());
+document.getElementById('tts-btn-next-page')?.addEventListener('click', () => _tts?.nextPage());
 
 // Sleep timer button
 document.getElementById('btn-sleep-timer')?.addEventListener('click', () => {

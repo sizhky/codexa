@@ -231,6 +231,7 @@
       <button id="btn-jump-pct"      class="btn-icon" data-i18n-title="reader.btn_jump_pct"      title="Skoči na odstotek"><img src="/images/percentage.svg" class="nav-icon nav-icon-percentage" alt=""></button>
       <button id="btn-sync"         class="btn-icon" data-i18n-title="reader.btn_sync"         title="Sync progress"><img src="/images/sync.svg" class="nav-icon nav-icon-sync" alt=""></button>
       <button id="btn-sleep-timer"  class="btn-icon" data-i18n-title="reader.btn_sleep_timer"  title="Sleep timer"><img src="/images/time.svg" class="nav-icon nav-icon-time" alt=""><span id="sleep-timer-badge" class="sleep-timer-badge hidden"></span></button>
+      <button id="btn-tts"          class="btn-icon" data-i18n-title="reader.btn_tts" title="Read aloud" aria-pressed="false"><img src="/images/tts.svg" class="nav-icon nav-icon-tts" alt=""></button>
       <button id="btn-settings"      class="btn-icon" data-i18n-title="reader.btn_settings"      title="Nastavitve branja"><img src="/images/settings.svg" class="nav-icon nav-icon-settings" alt=""></button>
       <button id="btn-fullscreen"  class="btn-icon" data-i18n-title="reader.btn_fullscreen" title="Celozaslonski način"><img src="/images/fullscreen.svg" class="nav-icon nav-icon-fullscreen" alt=""></button>
       <button id="btn-back"        class="btn-icon" data-i18n-title="reader.btn_back"       title="Nazaj v knjižnico"><img src="/images/back.svg" class="nav-icon nav-icon-back" alt=""></button>
@@ -275,6 +276,32 @@
         <label class="sleep-action-label"><input type="radio" name="sleep-action" value="wake"> <span data-i18n="reader.sleep_action_wake">Izklopi zaslon vedno vklopljen</span></label>
       </div>
       <button id="sleep-timer-cancel-btn" class="btn btn-secondary sleep-timer-cancel-btn" style="display:none" data-i18n="reader.sleep_timer_cancel">Prekliči časovnik</button>
+    </div>
+
+    <!-- Read-aloud bar — visible while a TTS session is active (playing or paused) -->
+    <div id="tts-bar" class="tts-bar" role="region" data-i18n-aria-label="reader.tts_bar" aria-label="Read aloud">
+      <div class="tts-bar-row">
+        <span class="tts-bar-label" data-i18n="reader.tts_volume">Volume</span>
+        <span id="tts-volume-value" class="tts-bar-value">100</span>
+        <input type="range" id="tts-volume-slider" min="0" max="100" step="5" value="100" data-i18n-aria-label="reader.tts_volume" aria-label="Volume" />
+        <button class="tts-bar-step" data-tts-step="ttsVolume:-5" aria-label="Volume down">−</button>
+        <button class="tts-bar-step" data-tts-step="ttsVolume:5" aria-label="Volume up">+</button>
+      </div>
+      <div class="tts-bar-row">
+        <span class="tts-bar-label" data-i18n="reader.tts_rate">Speed</span>
+        <span id="tts-rate-value" class="tts-bar-value">1.0×</span>
+        <input type="range" id="tts-rate-slider" min="0.5" max="2" step="0.1" value="1" data-i18n-aria-label="reader.tts_rate" aria-label="Speed" />
+        <button class="tts-bar-step" data-tts-step="ttsRate:-0.1" aria-label="Slower">−</button>
+        <button class="tts-bar-step" data-tts-step="ttsRate:0.1" aria-label="Faster">+</button>
+      </div>
+      <div class="tts-bar-controls">
+        <button id="tts-btn-stop" data-i18n-aria-label="reader.tts_stop" aria-label="Stop"><svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12"/></svg></button>
+        <button id="tts-btn-prev-page" data-i18n-aria-label="reader.tts_prev_page" aria-label="Read from previous page"><svg viewBox="0 0 24 24"><rect x="5" y="5" width="2.5" height="14"/><path d="M19 5v14L9 12z"/></svg></button>
+        <button id="tts-btn-prev-sentence" data-i18n-aria-label="reader.tts_prev_sentence" aria-label="Previous sentence"><svg viewBox="0 0 24 24"><path d="M12 6v12l-8.5-6zM21 6v12l-8.5-6z"/></svg></button>
+        <button id="tts-btn-play" data-i18n-aria-label="reader.tts_play_pause" aria-label="Play or pause"><svg class="tts-icon-play" viewBox="0 0 24 24"><path d="M7 5v14l12-7z"/></svg><svg class="tts-icon-pause" viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg></button>
+        <button id="tts-btn-next-sentence" data-i18n-aria-label="reader.tts_next_sentence" aria-label="Next sentence"><svg viewBox="0 0 24 24"><path d="M3 6v12l8.5-6zM12 6v12l8.5-6z"/></svg></button>
+        <button id="tts-btn-next-page" data-i18n-aria-label="reader.tts_next_page" aria-label="Read from next page"><svg viewBox="0 0 24 24"><path d="M5 5v14l10-7z"/><rect x="16.5" y="5" width="2.5" height="14"/></svg></button>
+      </div>
     </div>
 
     <!-- Dim overlay — shown when sleep timer fires with "dim" action -->
@@ -591,6 +618,12 @@
           <div class="setting-row-inline">
             <div class="setting-label" data-i18n="reader.header_btn_sleep_timer">Časovnik</div>
             <label class="toggle"><input type="checkbox" id="header-btn-sleep-timer-toggle"><span class="toggle-slider"></span></label>
+          </div>
+        </div>
+        <div class="setting-row">
+          <div class="setting-row-inline">
+            <div class="setting-label" data-i18n="reader.header_btn_tts">Read aloud</div>
+            <label class="toggle"><input type="checkbox" id="header-btn-tts-toggle"><span class="toggle-slider"></span></label>
           </div>
         </div>
         <div class="setting-row">
@@ -1242,6 +1275,7 @@
     </div>
     <button id="annot-btn-note"        class="btn-icon-sm" data-i18n-title="reader.annotation_add_note"    title="Dodaj opombo"><img src="/images/add_note.svg"   class="nav-icon nav-icon-add-note"   alt=""></button>
     <button id="annot-btn-dict"        class="btn-icon-sm annot-btn-dict" data-i18n-title="reader.annotation_dict_lookup" title="Slovar"><img src="/images/dictionary.svg" class="nav-icon nav-icon-dictionary" alt=""></button>
+    <button id="annot-btn-tts"         class="btn-icon-sm" data-i18n-title="reader.annotation_tts_here" title="Read aloud from here"><img src="/images/tts.svg" class="nav-icon nav-icon-tts" alt=""></button>
     <button id="annot-btn-search-book" class="btn-icon-sm" data-i18n-title="reader.annotation_search_book"  title="Išči v knjigi"><img src="/images/find.svg"       class="nav-icon nav-icon-find"       alt=""></button>
     <button id="annot-btn-copy"        class="btn-icon-sm" data-i18n-title="reader.annotation_copy"         title="Kopiraj"><img src="/images/copy.svg"       class="nav-icon nav-icon-copy"       alt=""></button>
     <button id="annot-btn-cancel"      class="btn-icon-sm" data-i18n-aria-label="common.close" aria-label="Prekliči"><img src="/images/close.svg"       class="nav-icon nav-icon-close"      alt=""></button>
@@ -1349,7 +1383,7 @@
        cross-origin requests are deliberately left uncached by sw.js, and third-party CDN
        resources aren't reliably available offline in iOS home-screen PWAs. -->
   <script src="/js/vendor/jszip.min.js"></script>
-  <script type="module" src="/js/reader.js?v=br-v135"></script>
+  <script type="module" src="/js/reader.js?v=br-v138"></script>
   <script src="/js/sw-register.js"></script>
 </body>
 </html>

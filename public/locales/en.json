@@ -808,5 +808,19 @@
   "error.opds_server_not_found": "OPDS server not found.",
   "error.zip_required": "A ZIP file is required.",
   "error.invalid_lang_code": "Language code must be 2-3 letters (e.g. \"en\", \"zh\").",
-  "error.dict_name_conflict": "A dictionary with that name already exists for that language pair."
+  "error.dict_name_conflict": "A dictionary with that name already exists for that language pair.",
+  "reader.btn_tts": "Read aloud",
+  "reader.header_btn_tts": "Read aloud",
+  "reader.tts_rate": "Speed",
+  "reader.tts_error": "Read aloud failed. Check the device text-to-speech engine.",
+  "reader.tts_no_text": "No readable text on these pages.",
+  "reader.annotation_tts_here": "Read aloud from here",
+  "reader.tts_bar": "Read aloud",
+  "reader.tts_volume": "Volume",
+  "reader.tts_stop": "Stop",
+  "reader.tts_prev_page": "Read from previous page",
+  "reader.tts_prev_sentence": "Previous sentence",
+  "reader.tts_play_pause": "Play or pause",
+  "reader.tts_next_sentence": "Next sentence",
+  "reader.tts_next_page": "Read from next page"
 }

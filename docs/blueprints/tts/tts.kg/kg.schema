@@ -1,0 +1,81 @@
+@graph id=tts title="Read-aloud (TTS) for EPUB and PDF"
+hover_attrs=why,description,build,evidence,code
+pair_by=pair
+default_view=build_order
+
+@sources
+nodes=kg.nodes
+attrs=kg.attrs
+base:
+	edges=kg.edges
+flow:
+	nodes=kg.flow.nodes+kg.nodes
+	edges=kg.flow.edges
+flow2:
+	nodes=kg.flow.nodes+kg.nodes
+	edges=kg.flow2.edges
+palette=kg.palette
+
+@relations
+supports color=relation.supports
+backs color=relation.backs
+enforces color=relation.enforces
+
+@views
+build_order:
+	source=base
+	group_by=module
+	color_by=kind
+	edge_label_from=relation
+	caption="Every leaf is built. Numbering is build order: helpers (1) and the Android native bridge (2) exist before the engine adapters (3) that call them; the reader controller (4) exists before the UI wiring (5) that drives it; UI wiring exists before the locale strings and offline delivery (6) that depend on it in this pack, except locale strings, which are numbered first inside module 5 because the button and slider read them."
+safeguards:
+	source=base
+	group_by=module
+	color_by=kind
+	edge_label_from=relation
+	caption="The one invariant in this feature: a page turn the reader did not ask for restarts reading instead of silently continuing. Node 4.2 (`onRelocated` guard) enforces it and backs the wiring in 5.6 that calls it on every `cx-relocated` event."
+play_flow:
+	source=flow
+	layout=sequence
+	sequence_lanes=user,reader-ui,tts-controller,android-engine,android-bridge,android-tts,web-engine,web-speech
+	sequence_role=role
+	sequence_message=message
+	sequence_activation=true
+	sequence_fragment=fragment
+	sequence_operand=operand
+	sequence_operand_note=operand_note
+	sequence_phase=phase
+	pair_by=pair
+	edge_label_from=note
+	hover_attrs=description,code
+	caption="One tap on the read-aloud button plays the first visible EPUB block, then keeps reading block by block, turning the page only when the spoken block scrolls off screen. The alt box shows the Android WebView path (native `TextToSpeech` through the JS bridge) beside the web/iOS path (`speechSynthesis`); the loop box shows one block's sentence-by-sentence read and the page turn it can trigger."
+	slides:
+		start: Steps 1 to 3 — tap and pick an engine
+			nodes=user,reader-ui,tts-controller
+			caption="The reader taps `btn-tts`. `toggle()` calls `play()`, which already holds the engine `pickEngine()` chose when the rendition opened."
+		epub-loop: Steps 4 to 10 — read one block, then the next
+			nodes=tts-controller,android-engine,android-bridge,android-tts,web-engine,web-speech
+			caption="`playEpub` walks the EPUB's block list from the visible anchor. Each block is split into sentences and spoken one at a time. Android WebView has no `speechSynthesis`, so the alt box shows the native bridge path next to the browser path."
+		page-turn: Step 11 — keep the spoken block on screen
+			nodes=tts-controller,reader-ui
+			caption="When the next block is off screen, `showBlock` calls `reader.next()` under a `selfTurn` guard, so the resulting `cx-relocated` event does not restart reading. A page turn the reader makes themselves is not guarded, and restarts reading from the new page."
+start_here_flow:
+	source=flow2
+	layout=sequence
+	sequence_lanes=user,reader-ui,tts-controller
+	sequence_role=role
+	sequence_message=message
+	sequence_fragment=fragment
+	sequence_operand=operand
+	sequence_operand_note=operand_note
+	pair_by=pair
+	edge_label_from=note
+	hover_attrs=description,code
+	caption="A user-chosen start point wins over the visible-page anchor. The alt box shows the two ways a reader picks one — selecting text and tapping \"Read aloud from here\" in the annotation toolbar, or tapping text while a rendition is already playing — both converging on the same `playFrom` call. The `ref` row points at `play_flow` for the engine call that follows, since that part of the run is identical either way."
+	slides:
+		pick: Steps 1 to 2 — pick a start point
+			nodes=user,reader-ui,tts-controller
+			caption="Selecting text and tapping the toolbar's read-aloud action, or tapping text while `_tts.playing` is true, both resolve to a DOM point and call `playFrom` (4.5). The tap path only reaches this alt after the touch handler's own left/right nav-zone check has already returned, so the jump never steals a page-turn tap."
+		resume: Steps 3 to 5 — stop, resume, and skip ahead
+			nodes=tts-controller
+			caption="`playFrom` stops the run in progress, then plays again from the chosen point; `playEpub` picks that point's block and skips the sentences already behind it before speaking resumes through the same engine loop shown in `play_flow`."
