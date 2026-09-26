@@ -6,6 +6,14 @@ import android.app.DownloadManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ActivityInfo
+import android.media.AudioAttributes
+import android.media.AudioFocusRequest
+import android.media.AudioFormat
+import android.media.AudioManager
+import android.media.AudioTrack
+import android.media.MediaMetadata
+import android.media.session.MediaSession
+import android.media.session.PlaybackState
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
@@ -222,6 +230,12 @@ class MainActivity : AppCompatActivity() {
         fun ttsStop() {
             runOnUiThread { ttsPending = null; tts?.stop() }
         }
+
+        /** Read-aloud session state; drives the media session that receives headset keys. */
+        @JavascriptInterface
+        fun ttsSessionState(active: Boolean, playing: Boolean) {
+            runOnUiThread { updateTtsMediaSession(active, playing) }
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -261,6 +275,7 @@ class MainActivity : AppCompatActivity() {
             return
         }
         ttsReady = true
+        tts?.setAudioAttributes(ttsAudioAttributes)
         tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
             override fun onStart(utteranceId: String) {}
             override fun onDone(utteranceId: String) = sendTtsEvent(utteranceId, "done")
@@ -270,6 +285,99 @@ class MainActivity : AppCompatActivity() {
                 sendTtsEvent(utteranceId, "stopped")
         })
         pending?.let { speakTts(it.id, it.text, it.rate, it.lang) }
+    }
+
+    // Bluetooth and wired headset keys reach the app through an active MediaSession. The
+    // TextToSpeech audio plays in the engine's process, so the app holds its own session.
+    private var ttsMediaSession: MediaSession? = null
+    private var ttsFocusRequest: AudioFocusRequest? = null
+    private val ttsAudioAttributes: AudioAttributes = AudioAttributes.Builder()
+        .setUsage(AudioAttributes.USAGE_MEDIA)
+        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+        .build()
+
+    private fun updateTtsMediaSession(active: Boolean, playing: Boolean) {
+        if (!active) {
+            ttsMediaSession?.isActive = false
+            abandonTtsFocus()
+            return
+        }
+        val session = ttsMediaSession ?: MediaSession(this, "CodexaReadAloud").also {
+            it.setCallback(object : MediaSession.Callback() {
+                override fun onPlay() = sendTtsMedia("play")
+                override fun onPause() = sendTtsMedia("pause")
+                override fun onStop() = sendTtsMedia("stop")
+                override fun onSkipToNext() = sendTtsMedia("next")
+                override fun onSkipToPrevious() = sendTtsMedia("prev")
+            })
+            it.setMetadata(MediaMetadata.Builder()
+                .putString(MediaMetadata.METADATA_KEY_TITLE, getString(R.string.app_name))
+                .build())
+            ttsMediaSession = it
+        }
+        val actions = PlaybackState.ACTION_PLAY or PlaybackState.ACTION_PAUSE or
+            PlaybackState.ACTION_PLAY_PAUSE or PlaybackState.ACTION_STOP or
+            PlaybackState.ACTION_SKIP_TO_NEXT or PlaybackState.ACTION_SKIP_TO_PREVIOUS
+        val state = if (playing) PlaybackState.STATE_PLAYING else PlaybackState.STATE_PAUSED
+        session.setPlaybackState(PlaybackState.Builder()
+            .setActions(actions)
+            .setState(state, PlaybackState.PLAYBACK_POSITION_UNKNOWN, 1f)
+            .build())
+        session.isActive = true
+        if (playing) {
+            requestTtsFocus()
+            playSilence()
+        }
+    }
+
+    // Media keys go to the app whose process most recently played audio
+    // (MediaSessionStack.updateMediaButtonSessionIfNeeded). TextToSpeech audio is played by the
+    // engine's process, so after a pause the keys would go to the last music player. A short
+    // silent track from this process keeps the keys here.
+    private fun playSilence() {
+        val rate = 8000
+        val samples = ShortArray(rate / 5) // 200 ms
+        val track = try {
+            AudioTrack.Builder()
+                .setAudioAttributes(ttsAudioAttributes)
+                .setAudioFormat(AudioFormat.Builder()
+                    .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                    .setSampleRate(rate)
+                    .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                    .build())
+                .setTransferMode(AudioTrack.MODE_STATIC)
+                .setBufferSizeInBytes(samples.size * 2)
+                .build()
+        } catch (e: Exception) { return }
+        track.write(samples, 0, samples.size)
+        track.play()
+        webView.postDelayed({ track.release() }, 400)
+    }
+
+    // Another app taking audio (a call, music) pauses reading.
+    private fun requestTtsFocus() {
+        if (ttsFocusRequest != null) return
+        val request = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+            .setAudioAttributes(ttsAudioAttributes)
+            .setOnAudioFocusChangeListener { change ->
+                if (change == AudioManager.AUDIOFOCUS_LOSS || change == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT) {
+                    sendTtsMedia("pause")
+                }
+                if (change == AudioManager.AUDIOFOCUS_LOSS) abandonTtsFocus()
+            }
+            .build()
+        val granted = getSystemService(AudioManager::class.java).requestAudioFocus(request)
+        if (granted == AudioManager.AUDIOFOCUS_REQUEST_GRANTED) ttsFocusRequest = request
+    }
+
+    private fun abandonTtsFocus() {
+        ttsFocusRequest?.let { getSystemService(AudioManager::class.java).abandonAudioFocusRequest(it) }
+        ttsFocusRequest = null
+    }
+
+    private fun sendTtsMedia(action: String) {
+        val js = "window.__codexaTtsMedia&&window.__codexaTtsMedia('$action')"
+        runOnUiThread { webView.evaluateJavascript(js, null) }
     }
 
     private fun sendTtsEvent(id: String, event: String) {
@@ -330,6 +438,9 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         tts?.shutdown()
         tts = null
+        abandonTtsFocus()
+        ttsMediaSession?.release()
+        ttsMediaSession = null
         // Detach and destroy the WebView to release its resources and avoid leaks.
         (webView.parent as? android.view.ViewGroup)?.removeView(webView)
         webView.destroy()

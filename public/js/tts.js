@@ -120,6 +120,10 @@ function androidEngine(win, bridge) {
         catch { pending.delete(id); resolve('error'); }
       });
     },
+    // Headset keys arrive through a media session the app keeps in step with this state.
+    session(active, playing) {
+      if (typeof bridge.ttsSessionState === 'function') bridge.ttsSessionState(active, playing); // older APKs lack it
+    },
     stop() {
       try { bridge.ttsStop(); } catch { /* bridge gone */ }
       for (const resolve of pending.values()) resolve('stopped');
@@ -183,7 +187,7 @@ export function createTts(reader, opts = {}) {
   let activeEl = null;
   const pdfCache = new Map();
 
-  const emit = () => opts.onState?.({ active, playing });
+  const emit = () => { engine?.session?.(active, playing); opts.onState?.({ active, playing }); };
   const say = (text) => engine.speak(text, {
     rate: opts.getRate?.() ?? 1, volume: opts.getVolume?.() ?? 1, lang: opts.getLang?.() || '',
   });
@@ -389,7 +393,7 @@ export function createTts(reader, opts = {}) {
     start();
   }
 
-  return {
+  const api = {
     get available() { return !!engine; },
     get active() { return active; },
     get playing() { return playing; },
@@ -429,4 +433,14 @@ export function createTts(reader, opts = {}) {
       if (playing) start();
     },
   };
+
+  // Headset and Bluetooth keys, delivered by the Android media session.
+  window.__codexaTtsMedia = (action) => {
+    if (action === 'play' && !playing) start(cursor);
+    else if (action === 'pause' && playing) pause();
+    else if (action === 'stop') stop();
+    else if (action === 'next') api.nextSentence();
+    else if (action === 'prev') api.prevSentence();
+  };
+  return api;
 }
